@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: ledgerly-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ledgerly
+    ports:
+      - "5432:5432"
+    volumes:
+      - ledgerly_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: ledgerly-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Ledgerly.Api/Dockerfile
+    container_name: ledgerly-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5080
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=ledgerly;Username=postgres;Password=postgres"
+      ConnectionStrings__Redis: "redis:6379"
+      Jwt__Key: "${JWT_KEY:-dev_only_change_me_dev_only_change_me_dev_only_change_me}"
+      Jwt__Issuer: "ledgerly"
+      Jwt__Audience: "ledgerly"
+      Stripe__SecretKey: "${STRIPE_SECRET_KEY:-sk_test_dummy}"
+      Stripe__WebhookSecret: "${STRIPE_WEBHOOK_SECRET:-whsec_dummy}"
+      Stripe__PricePro: "${STRIPE_PRICE_PRO:-price_dummy_pro}"
+      Stripe__PriceBusiness: "${STRIPE_PRICE_BUSINESS:-price_dummy_business}"
+      PublicAppUrl: "${PUBLIC_APP_URL:-http://localhost:5173}"
+    ports:
+      - "5080:5080"
+
+volumes:
+  ledgerly_pg:
