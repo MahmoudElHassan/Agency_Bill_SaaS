@@ -53,4 +53,23 @@ public class InvoiceTotalsTests
         invoice.Tax.Should().Be(10m);
         invoice.Total.Should().Be(110m);
     }
+
+    [Fact]
+    public void ClearLines_zeros_totals_and_recomputes()
+    {
+        var invoice = new Invoice
+        {
+            IssueDate = DateTime.UtcNow,
+            DueDate = DateTime.UtcNow.AddDays(14)
+        };
+        invoice.AddLine(new InvoiceLine { Description = "Item", Quantity = 1m, UnitPrice = 100m, TaxRate = 10m });
+        invoice.Subtotal.Should().Be(100m);
+
+        invoice.ClearLines();
+
+        invoice.Lines.Should().BeEmpty();
+        invoice.Subtotal.Should().Be(0m);
+        invoice.Tax.Should().Be(0m);
+        invoice.Total.Should().Be(0m);
+    }
 }

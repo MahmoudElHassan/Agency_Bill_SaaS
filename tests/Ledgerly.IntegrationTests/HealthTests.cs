@@ -7,11 +7,11 @@ using Xunit;
 
 namespace Ledgerly.IntegrationTests;
 
-public class HealthTests : IClassFixture<WebApplicationFactory<Program>>
+public class HealthTests : IClassFixture<HangfireDisabledFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly HangfireDisabledFactory _factory;
 
-    public HealthTests(WebApplicationFactory<Program> factory) => _factory = factory;
+    public HealthTests(HangfireDisabledFactory factory) => _factory = factory;
 
     [Fact]
     public async Task Health_returns_200()

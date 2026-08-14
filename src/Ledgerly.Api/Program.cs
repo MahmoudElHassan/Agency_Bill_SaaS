@@ -104,19 +104,23 @@ builder.Services.AddCors(o => o.AddPolicy("Dev", p => p
     .AllowAnyMethod()
     .WithOrigins("http://localhost:5173", "http://localhost:3000")));
 
-var useInMemoryHangfire = builder.Environment.IsDevelopment() &&
-    builder.Configuration.GetValue<bool>("Hangfire:UseInMemory");
+var disableHangfire = builder.Configuration.GetValue<bool>("Hangfire:Disabled");
+if (!disableHangfire)
+{
+    var useInMemoryHangfire = builder.Environment.IsDevelopment() &&
+        builder.Configuration.GetValue<bool>("Hangfire:UseInMemory");
 
-if (useInMemoryHangfire)
-{
-    builder.Services.AddHangfire(c => c.UseMemoryStorage());
+    if (useInMemoryHangfire)
+    {
+        builder.Services.AddHangfire(c => c.UseMemoryStorage());
+    }
+    else
+    {
+        var pgConn = builder.Configuration.GetConnectionString("Default")!;
+        builder.Services.AddHangfire(c => c.UsePostgreSqlStorage(pgConn));
+    }
+    builder.Services.AddHangfireServer();
 }
-else
-{
-    var pgConn = builder.Configuration.GetConnectionString("Default")!;
-    builder.Services.AddHangfire(c => c.UsePostgreSqlStorage(pgConn));
-}
-builder.Services.AddHangfireServer();
 
 var app = builder.Build();
 
@@ -138,7 +142,7 @@ app.UseMiddleware<TenantMiddleware>();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() && !disableHangfire)
 {
     app.UseHangfireDashboard("/hangfire");
 }
@@ -150,10 +154,13 @@ if (app.Environment.IsDevelopment())
     db.Database.Migrate();
 }
 
-RecurringJob.AddOrUpdate<MarkOverdueInvoicesJob>(
-    "mark-overdue-hourly",
-    job => job.RunAsync(),
-    Cron.Hourly);
+if (!disableHangfire)
+{
+    RecurringJob.AddOrUpdate<MarkOverdueInvoicesJob>(
+        "mark-overdue-hourly",
+        job => job.RunAsync(),
+        Cron.Hourly);
+}
 
 app.Run();
 

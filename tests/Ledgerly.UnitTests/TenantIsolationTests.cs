@@ -4,7 +4,7 @@ using Ledgerly.Application.Clients;
 using Ledgerly.Domain.Entities;
 using Ledgerly.Domain.Enums;
 using Ledgerly.Infrastructure.Persistence;
-using Ledgerly.Infrastructure.Security;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -12,20 +12,30 @@ namespace Ledgerly.UnitTests;
 
 public class TenantIsolationTests : IDisposable
 {
+    private readonly SqliteConnection _connection;
     private readonly AppDbContext _db;
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
 
     public TenantIsolationTests()
     {
+        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection.Open();
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseSqlite(_connection)
             .Options;
-        var ctx = new CurrentTenant { TenantId = _tenantA };
-        _db = new AppDbContext(options, ctx);
+        _db = new AppDbContext(options, new CurrentTenant { TenantId = _tenantA });
+        _db.Database.EnsureCreated();
+        _db.Tenants.Add(new Tenant { Id = _tenantA, Name = "A", Slug = "a-" + Guid.NewGuid().ToString("N")[..6] });
+        _db.Tenants.Add(new Tenant { Id = _tenantB, Name = "B", Slug = "b-" + Guid.NewGuid().ToString("N")[..6] });
+        _db.SaveChanges();
     }
 
-    public void Dispose() => _db.Dispose();
+    public void Dispose()
+    {
+        _db.Dispose();
+        _connection.Dispose();
+    }
 
     [Fact]
     public async Task Client_query_is_filtered_by_tenant()
