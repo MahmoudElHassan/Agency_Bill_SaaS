@@ -34,6 +34,9 @@ public class UserRepository : IUserRepository
     public Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
 
+    public Task<User?> GetByIdIgnoringFiltersAsync(Guid id, CancellationToken ct = default) =>
+        _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == id, ct);
+
     public Task<User?> GetByEmailAnyTenantAsync(string email, CancellationToken ct = default) =>
         _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == email, ct);
 
@@ -90,6 +93,9 @@ public class InvoiceRepository : IInvoiceRepository
 
     public Task<Invoice?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         _db.Invoices.Include(i => i.Lines).Include(i => i.Client).FirstOrDefaultAsync(i => i.Id == id, ct);
+
+    public Task<Invoice?> GetByIdIgnoringFiltersAsync(Guid id, CancellationToken ct = default) =>
+        _db.Invoices.IgnoreQueryFilters().Include(i => i.Lines).Include(i => i.Client).FirstOrDefaultAsync(i => i.Id == id, ct);
 
     public Task<Invoice?> GetByNumberAsync(string number, Guid tenantId, CancellationToken ct = default) =>
         _db.Invoices.IgnoreQueryFilters().FirstOrDefaultAsync(i => i.Number == number && i.TenantId == tenantId, ct);

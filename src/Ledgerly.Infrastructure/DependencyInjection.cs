@@ -35,6 +35,8 @@ public static class DependencyInjection
             AccessTokenMinutes = int.TryParse(config["Jwt:AccessTokenMinutes"], out var m) ? m : 60,
             RefreshTokenDays = int.TryParse(config["Jwt:RefreshTokenDays"], out var d) ? d : 30
         };
+        if (jwtOptions.Key.Length < 32)
+            throw new InvalidOperationException("Jwt:Key must be at least 32 characters.");
         services.AddSingleton(jwtOptions);
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IRefreshTokenStore, RedisRefreshTokenStore>();

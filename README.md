@@ -112,14 +112,8 @@ Copy `.env.example` to `.env` and edit. The API also reads from `appsettings.jso
 
 All authenticated endpoints use `Authorization: Bearer <jwt>`. The JWT carries `tid` (tenant id), `sub` (user id), `role`.
 
-## Done so far
 
-- [x] Day 1: solution, Clean Architecture, Docker Compose, health checks, Swagger, migration
-- [x] Day 2: register/login/refresh JWT, tenant isolation middleware, cross-tenant 404 verified
-- [x] Day 3: client + invoice CRUD, public pay link, status machine, plan limit returns 402
-- [x] Day 4: Stripe Checkout + Customer Portal + idempotent webhook handler + dev simulator
-- [x] Day 5: xUnit tests (unit + integration), React demo UI, Swagger, README, DEMO.md
-- [x] Day 6: production-style Docker Compose, seed script, Definition of Done checklist
+
 
 ## Tests
 

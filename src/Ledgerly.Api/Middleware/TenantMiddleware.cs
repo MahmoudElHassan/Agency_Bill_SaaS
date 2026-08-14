@@ -11,9 +11,7 @@ public class TenantMiddleware
 
     public async Task InvokeAsync(HttpContext context, ICurrentTenant current)
     {
-        var tid = context.User.FindFirst("tid")?.Value
-                  ?? context.User.FindFirst("tenant")?.Value
-                  ?? context.Request.Query["tenantId"].ToString();
+        var tid = context.User.FindFirst("tid")?.Value;
         var sub = context.User.FindFirst("sub")?.Value
                   ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                   ?? context.User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;

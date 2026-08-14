@@ -42,9 +42,9 @@ public class AppDbContext : DbContext
             b.Property(u => u.PasswordHash).IsRequired();
             b.Property(u => u.FullName).IsRequired().HasMaxLength(200);
             b.Property(u => u.Role).HasConversion<int>();
-            b.HasIndex(u => new { u.TenantId, u.Email }).IsUnique();
+            b.HasIndex(u => u.Email).IsUnique();
             b.HasOne(u => u.Tenant).WithMany(t => t.Users).HasForeignKey(u => u.TenantId);
-            b.HasQueryFilter(u => u.TenantId == _current.TenantId || _current.TenantId == Guid.Empty);
+            b.HasQueryFilter(u => u.TenantId == _current.TenantId);
         });
 
         modelBuilder.Entity<Client>(b =>
@@ -55,7 +55,7 @@ public class AppDbContext : DbContext
             b.Property(c => c.Address).HasMaxLength(500);
             b.Property(c => c.Currency).IsRequired().HasMaxLength(3);
             b.HasOne(c => c.Tenant).WithMany(t => t.Clients).HasForeignKey(c => c.TenantId);
-            b.HasQueryFilter(c => c.TenantId == _current.TenantId || _current.TenantId == Guid.Empty);
+            b.HasQueryFilter(c => c.TenantId == _current.TenantId);
         });
 
         modelBuilder.Entity<Invoice>(b =>
@@ -72,7 +72,7 @@ public class AppDbContext : DbContext
             b.HasIndex(i => i.PublicPayToken).IsUnique();
             b.HasOne(i => i.Client).WithMany(c => c.Invoices).HasForeignKey(i => i.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasMany(i => i.Lines).WithOne(l => l.Invoice).HasForeignKey(l => l.InvoiceId).OnDelete(DeleteBehavior.Cascade);
-            b.HasQueryFilter(i => i.TenantId == _current.TenantId || _current.TenantId == Guid.Empty);
+            b.HasQueryFilter(i => i.TenantId == _current.TenantId);
         });
 
         modelBuilder.Entity<InvoiceLine>(b =>

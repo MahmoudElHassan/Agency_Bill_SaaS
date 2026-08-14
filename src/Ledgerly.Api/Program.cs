@@ -43,10 +43,17 @@ builder.Services.AddSwaggerGen(c =>
 
 var jwtOptions = new JwtOptions
 {
-    Key = builder.Configuration["Jwt:Key"] ?? "dev_only_change_me_dev_only_change_me_dev_only_change_me",
+    Key = builder.Configuration["Jwt:Key"] ?? string.Empty,
     Issuer = builder.Configuration["Jwt:Issuer"] ?? "ledgerly",
     Audience = builder.Configuration["Jwt:Audience"] ?? "ledgerly"
 };
+
+const string WellKnownDevKey = "dev_only_change_me_dev_only_change_me_dev_only_change_me";
+if (!builder.Environment.IsDevelopment())
+{
+    if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32 || jwtOptions.Key == WellKnownDevKey)
+        throw new InvalidOperationException("Jwt:Key must be set to a non-default value of 32+ characters outside Development.");
+}
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
@@ -98,8 +105,11 @@ var app = builder.Build();
 app.UseMiddleware<ApiExceptionMiddleware>();
 app.UseSerilogRequestLogging();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseCors("Dev");
 app.UseAuthentication();
@@ -110,8 +120,9 @@ app.UseMiddleware<TenantMiddleware>();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }

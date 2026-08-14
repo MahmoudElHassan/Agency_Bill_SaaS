@@ -15,6 +15,7 @@ public interface IUserRepository
 {
     Task<User?> GetByEmailAsync(string email, Guid tenantId, CancellationToken ct = default);
     Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<User?> GetByIdIgnoringFiltersAsync(Guid id, CancellationToken ct = default);
     Task<User?> GetByEmailAnyTenantAsync(string email, CancellationToken ct = default);
     Task<bool> EmailExistsAsync(string email, CancellationToken ct = default);
     Task AddAsync(User user, CancellationToken ct = default);
@@ -35,6 +36,7 @@ public interface IClientRepository
 public interface IInvoiceRepository
 {
     Task<Invoice?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<Invoice?> GetByIdIgnoringFiltersAsync(Guid id, CancellationToken ct = default);
     Task<Invoice?> GetByNumberAsync(string number, Guid tenantId, CancellationToken ct = default);
     Task<Invoice?> GetByPublicTokenAsync(string token, CancellationToken ct = default);
     Task<(IReadOnlyList<Invoice> Items, int Total)> ListAsync(
