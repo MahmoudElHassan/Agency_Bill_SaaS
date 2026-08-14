@@ -68,12 +68,14 @@ Copy `.env.example` to `.env` and edit. The API also reads from `appsettings.jso
 | --- | --- | --- |
 | `ConnectionStrings__Default` | yes | Postgres connection string |
 | `ConnectionStrings__Redis` | yes | Redis connection string |
-| `Jwt__Key` | yes | 32+ char signing key |
+| `Jwt__Key` | yes | 32+ char signing key. Throws at startup outside Development if empty, short, or the well-known placeholder. |
 | `Jwt__Issuer`, `Jwt__Audience` | no | defaults to `ledgerly` |
 | `Stripe__SecretKey` | for checkout | test mode secret key |
 | `Stripe__WebhookSecret` | for webhooks | from `stripe listen` |
-| `Stripe__PricePro` / `Stripe__PriceBusiness` | for checkout | Stripe price IDs |
+| `Stripe__PricePro` / `Stripe__PriceBusiness` | for checkout | Stripe price IDs used to map subscription events to plans |
 | `PublicAppUrl` | no | base URL of the frontend (for pay links) |
+| `Dev__EnableWebhookSimulator` | no | `true` only in Development. `false` in `appsettings.json`. |
+| `Hangfire__UseInMemory` | no | `true` in Development; production uses PostgreSQL storage. |
 
 ## API contract
 
@@ -111,9 +113,40 @@ Copy `.env.example` to `.env` and edit. The API also reads from `appsettings.jso
 - `GET /health`
 
 All authenticated endpoints use `Authorization: Bearer <jwt>`. The JWT carries `tid` (tenant id), `sub` (user id), `role`.
+All authenticated endpoints use `Authorization: Bearer <jwt>`. The JWT carries `tid` (tenant id), `sub` (user id), `role`.
 
+## Auth flow
 
+- `POST /api/auth/register` and `POST /api/auth/login` return `{ accessToken, refreshToken, ... }`.
+- The opaque `refreshToken` is the Redis key. `POST /api/auth/refresh` with it returns 200 + new tokens; replaying the old refresh returns 401.
+- `POST /api/auth/logout` blacklists the refresh token in Redis.
+- `GET /api/auth/me` requires `[Authorize]`.
 
+## Hangfire
+
+- Dashboard at `/hangfire` (Development only).
+- Recurring job `mark-overdue-hourly` flips Draft/Sent invoices past due to `Overdue` and fires the email-sender stub.
+- Dev uses in-memory storage; production uses PostgreSQL storage on the same connection string.
+
+## Dev-only endpoints
+
+- `POST /api/dev/webhook/{tenantId}?type=...&customerId=...&subscriptionId=...&priceId=...&paymentIntentId=...` — invokes `StripeWebhookHandler` directly. Gated on `IsDevelopment()` AND `Dev:EnableWebhookSimulator=true`. Returns 404 otherwise.
+- `POST /api/dev/jobs/mark-overdue` — runs `MarkOverdueInvoicesHandler` on demand. Gated on `IsDevelopment()`.
+
+## Done so far
+
+- [x] Day 1: solution, Clean Architecture, Docker Compose, health checks, Swagger, migration
+- [x] Day 2: register/login/refresh JWT, tenant isolation middleware, cross-tenant 404 verified
+- [x] Day 3: client + invoice CRUD, public pay link, status machine, plan limit returns 402
+- [x] Day 4: Stripe Checkout + Customer Portal + idempotent webhook handler + dev simulator
+- [x] Day 5: xUnit tests (unit + integration), React demo UI, Swagger, README, DEMO.md
+- [x] Day 6: production-style Docker Compose, seed script, Definition of Done checklist
+- [x] Review fixes A: dev simulator gated, JWT-only tenant, strict query filters, config hygiene
+- [x] Review fixes B: opaque refresh tokens in Redis, global unique email, Owner RBAC
+- [x] Review fixes C: real Stripe webhook parsing, billing/payment side-effects, invoice number retry, void guards
+- [x] Review fixes D: Hangfire recurring overdue job (Dev in-memory, Prod PostgreSQL)
+- [x] Review fixes E: HTTP tests for isolation, 402, refresh, webhook idempotency, dev simulator gating
+- [x] Review fixes F: DECISIONS.md, README, frontend refresh-on-401 glue
 
 ## Tests
 
@@ -123,14 +156,20 @@ dotnet test tests/Ledgerly.UnitTests
 ```
 
 Unit tests cover:
-- Invoice totals (subtotal, tax, total)
+- Invoice totals (subtotal, tax, total) including `ClearLines` zeros totals
 - Tenant filter on `ClientRepository`
-- Plan catalog parsing
+- `Guid.Empty` current tenant returns nothing (strict query filter)
+- `VoidInvoiceHandler` rejects Paid, accepts Draft
+- Plan catalog parsing + price→plan mapping
 
 Integration tests cover:
 - `/health` returns 200
+- Full auth flow: register, login, `/me` (unauth 401, auth 200), refresh rotates tokens, old refresh 401, logout invalidates
+- Tenant isolation: cross-tenant GET 404, `?tenantId=` ignored when JWT present
+- Plan limit: 4th invoice in a Free month returns 402 + `code: plan_limit`
+- Webhook idempotency: same `StripeEventId` only marks invoice Paid once
+- Dev simulator: `/api/dev/webhook/...` 404 in Production; also 404 in Development when `Dev:EnableWebhookSimulator=false`
 
 ## Notes / decisions
 
 See `docs/DECISIONS.md` for the troubleshooting log + documented fallbacks used during the build.
-See `docs/DEMO.md` for a 10-step click path used in portfolio recordings.

@@ -62,6 +62,24 @@ async function call<T>(path: string, init: RequestInit = {}, token?: string): Pr
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  if (res.status === 401 && token) {
+    const stored = localStorage.getItem("ledgerly.auth");
+    if (stored) {
+      const parsed = JSON.parse(stored) as AuthResponse;
+      try {
+        const refreshed = await api.refresh(parsed.refreshToken);
+        localStorage.setItem("ledgerly.auth", JSON.stringify(refreshed));
+        headers.set("Authorization", `Bearer ${refreshed.accessToken}`);
+        const retry = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+        const retryBody = (await retry.json()) as ApiEnvelope<T>;
+        if (!retryBody.success) throw new Error(retryBody.error?.message ?? "Request failed");
+        return retryBody.data as T;
+      } catch {
+        localStorage.removeItem("ledgerly.auth");
+        throw new Error("Session expired");
+      }
+    }
+  }
   const body = (await res.json()) as ApiEnvelope<T>;
   if (!body.success) {
     throw new Error(body.error?.message ?? "Request failed");
@@ -74,6 +92,10 @@ export const api = {
     call<AuthResponse>("/api/auth/register", { method: "POST", body: JSON.stringify(req) }),
   login: (req: { email: string; password: string }) =>
     call<AuthResponse>("/api/auth/login", { method: "POST", body: JSON.stringify(req) }),
+  refresh: (refreshToken: string) =>
+    call<AuthResponse>("/api/auth/refresh", { method: "POST", body: JSON.stringify({ refreshToken }) }),
+  logout: (refreshToken: string) =>
+    call<void>("/api/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
   me: (token: string) => call<{ email: string; fullName: string; role: string; tenantName: string; plan: string }>("/api/auth/me", {}, token),
   listClients: (token: string) => call<ClientDto[]>("/api/clients", {}, token),
   createClient: (token: string, req: { name: string; email: string; address?: string; currency: string }) =>
