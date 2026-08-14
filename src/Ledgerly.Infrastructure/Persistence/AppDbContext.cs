@@ -71,7 +71,7 @@ public class AppDbContext : DbContext
             b.HasIndex(i => new { i.TenantId, i.Number }).IsUnique();
             b.HasIndex(i => i.PublicPayToken).IsUnique();
             b.HasOne(i => i.Client).WithMany(c => c.Invoices).HasForeignKey(i => i.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasMany(i => i.Lines).WithOne(l => l.Invoice!).HasForeignKey(l => l.InvoiceId).OnDelete(DeleteBehavior.Cascade);
+            b.HasMany(i => i.Lines).WithOne(l => l.Invoice).HasForeignKey(l => l.InvoiceId).OnDelete(DeleteBehavior.Cascade);
             b.HasQueryFilter(i => i.TenantId == _current.TenantId || _current.TenantId == Guid.Empty);
         });
 

@@ -11,5 +11,5 @@ public class InvoiceLine : AuditableEntity
     public decimal UnitPrice { get; set; }
     public decimal TaxRate { get; set; }
 
-    public Invoice? Invoice { get; set; }
+    public Invoice? Invoice { get; set; } = null!;
 }

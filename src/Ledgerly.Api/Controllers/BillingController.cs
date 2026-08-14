@@ -1,5 +1,4 @@
 using Ledgerly.Api.Middleware;
-
 using Ledgerly.Application.Billing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,11 +9,15 @@ namespace Ledgerly.Api.Controllers;
 [Route("api/billing")]
 public class BillingController : ControllerBase
 {
+    private readonly IConfiguration _config;
+
+    public BillingController(IConfiguration config) => _config = config;
+
     [HttpGet("plans")]
-    public async Task<IActionResult> Plans([FromServices] ListPlansHandler handler, [FromServices] IConfiguration config, CancellationToken ct)
+    public async Task<IActionResult> Plans([FromServices] ListPlansHandler handler, CancellationToken ct)
     {
-        var pro = config["Stripe:PricePro"];
-        var biz = config["Stripe:PriceBusiness"];
+        var pro = _config["Stripe:PricePro"];
+        var biz = _config["Stripe:PriceBusiness"];
         var result = await handler.HandleAsync(pro, biz, ct);
         return result.ToActionResult();
     }
@@ -23,7 +26,8 @@ public class BillingController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Checkout([FromBody] CheckoutRequest request, [FromServices] CheckoutHandler handler, CancellationToken ct)
     {
-        var result = await handler.HandleAsync(request, ct);
+        var publicAppUrl = _config["PublicAppUrl"] ?? "http://localhost:5173";
+        var result = await handler.HandleAsync(request, publicAppUrl, ct);
         return result.ToActionResult();
     }
 
@@ -31,7 +35,8 @@ public class BillingController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Portal([FromServices] PortalHandler handler, CancellationToken ct)
     {
-        var result = await handler.HandleAsync(ct);
+        var publicAppUrl = _config["PublicAppUrl"] ?? "http://localhost:5173";
+        var result = await handler.HandleAsync(publicAppUrl, ct);
         return result.ToActionResult();
     }
 

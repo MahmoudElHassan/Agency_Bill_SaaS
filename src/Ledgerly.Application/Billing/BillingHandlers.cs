@@ -28,17 +28,15 @@ public sealed class CheckoutHandler
     private readonly IStripeGateway _stripe;
     private readonly ICurrentTenant _current;
     private readonly ITenantRepository _tenants;
-    private readonly string _publicAppUrl;
 
-    public CheckoutHandler(IStripeGateway stripe, ICurrentTenant current, ITenantRepository tenants, string publicAppUrl)
+    public CheckoutHandler(IStripeGateway stripe, ICurrentTenant current, ITenantRepository tenants)
     {
         _stripe = stripe;
         _current = current;
         _tenants = tenants;
-        _publicAppUrl = publicAppUrl;
     }
 
-    public async Task<Result<CheckoutResponse>> HandleAsync(CheckoutRequest request, CancellationToken ct = default)
+    public async Task<Result<CheckoutResponse>> HandleAsync(CheckoutRequest request, string publicAppUrl, CancellationToken ct = default)
     {
         Guard.AgainstNullOrWhiteSpace(request.PriceId, nameof(request.PriceId));
 
@@ -46,8 +44,8 @@ public sealed class CheckoutHandler
         if (tenant is null)
             return Result.Failure<CheckoutResponse>(Error.NotFound);
 
-        var successUrl = $"{_publicAppUrl.TrimEnd('/')}/billing/success?session_id={{CHECKOUT_SESSION_ID}}";
-        var cancelUrl = $"{_publicAppUrl.TrimEnd('/')}/billing/cancel";
+        var successUrl = $"{publicAppUrl.TrimEnd('/')}/billing/success?session_id={{CHECKOUT_SESSION_ID}}";
+        var cancelUrl = $"{publicAppUrl.TrimEnd('/')}/billing/cancel";
         var result = await _stripe.CreateCheckoutSessionAsync(tenant.Id, request.PriceId, successUrl, cancelUrl, ct);
 
         return Result.Success(new CheckoutResponse(result.Url));
@@ -59,17 +57,15 @@ public sealed class PortalHandler
     private readonly IStripeGateway _stripe;
     private readonly ICurrentTenant _current;
     private readonly ITenantRepository _tenants;
-    private readonly string _publicAppUrl;
 
-    public PortalHandler(IStripeGateway stripe, ICurrentTenant current, ITenantRepository tenants, string publicAppUrl)
+    public PortalHandler(IStripeGateway stripe, ICurrentTenant current, ITenantRepository tenants)
     {
         _stripe = stripe;
         _current = current;
         _tenants = tenants;
-        _publicAppUrl = publicAppUrl;
     }
 
-    public async Task<Result<CheckoutResponse>> HandleAsync(CancellationToken ct = default)
+    public async Task<Result<CheckoutResponse>> HandleAsync(string publicAppUrl, CancellationToken ct = default)
     {
         var tenant = await _tenants.GetByIdAsync(_current.TenantId, ct);
         if (tenant is null)
@@ -78,7 +74,7 @@ public sealed class PortalHandler
         if (string.IsNullOrWhiteSpace(tenant.StripeCustomerId))
             return Result.Failure<CheckoutResponse>(Error.FromMessage("no_stripe_customer", "No Stripe customer for this tenant."));
 
-        var returnUrl = $"{_publicAppUrl.TrimEnd('/')}/billing";
+        var returnUrl = $"{publicAppUrl.TrimEnd('/')}/billing";
         var url = _stripe.CreatePortalSession(tenant.StripeCustomerId, returnUrl);
         return Result.Success(new CheckoutResponse(url));
     }
