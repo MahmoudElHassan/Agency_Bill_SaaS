@@ -23,7 +23,7 @@ public class BillingController : ControllerBase
     }
 
     [HttpPost("checkout")]
-    [Authorize]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> Checkout([FromBody] CheckoutRequest request, [FromServices] CheckoutHandler handler, CancellationToken ct)
     {
         var publicAppUrl = _config["PublicAppUrl"] ?? "http://localhost:5173";
@@ -32,7 +32,7 @@ public class BillingController : ControllerBase
     }
 
     [HttpPost("portal")]
-    [Authorize]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> Portal([FromServices] PortalHandler handler, CancellationToken ct)
     {
         var publicAppUrl = _config["PublicAppUrl"] ?? "http://localhost:5173";

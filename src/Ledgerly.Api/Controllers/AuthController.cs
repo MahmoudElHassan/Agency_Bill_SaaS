@@ -1,5 +1,6 @@
 using Ledgerly.Api.Middleware;
 using Ledgerly.Application.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ledgerly.Api.Controllers;
@@ -23,6 +24,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
+    [AllowAnonymous]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request, [FromServices] RefreshHandler handler, CancellationToken ct)
     {
         var result = await handler.HandleAsync(request, ct);
@@ -30,6 +32,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("logout")]
+    [AllowAnonymous]
     public async Task<IActionResult> Logout([FromBody] RefreshRequest request, [FromServices] LogoutHandler handler, CancellationToken ct)
     {
         var result = await handler.HandleAsync(request.RefreshToken, ct);
@@ -37,6 +40,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("me")]
+    [Authorize]
     public async Task<IActionResult> Me([FromServices] MeHandler handler, CancellationToken ct)
     {
         var result = await handler.HandleAsync(ct);

@@ -3,27 +3,6 @@ using Ledgerly.Shared;
 
 namespace Ledgerly.Application.Auth;
 
-public sealed class LogoutHandler
-{
-    private readonly IRefreshTokenStore _refresh;
-    private readonly ICurrentTenant _current;
-
-    public LogoutHandler(IRefreshTokenStore refresh, ICurrentTenant current)
-    {
-        _refresh = refresh;
-        _current = current;
-    }
-
-    public async Task<Result> HandleAsync(string refreshToken, CancellationToken ct = default)
-    {
-        if (_current.UserId is null)
-            return Result.Failure(Error.Unauthorized);
-
-        await _refresh.RevokeAsync(_current.UserId.Value, refreshToken, ct);
-        return Result.Success();
-    }
-}
-
 public sealed class MeHandler
 {
     private readonly ICurrentTenant _current;

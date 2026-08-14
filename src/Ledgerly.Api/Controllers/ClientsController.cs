@@ -1,5 +1,4 @@
 using Ledgerly.Api.Middleware;
-
 using Ledgerly.Application.Clients;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,6 +39,7 @@ public class ClientsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> Delete(Guid id, [FromServices] DeleteClientHandler handler, CancellationToken ct)
     {
         var result = await handler.HandleAsync(id, ct);

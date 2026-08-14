@@ -52,32 +52,4 @@ public class JwtTokenService : IJwtTokenService
         var expires = DateTime.UtcNow.AddDays(_options.RefreshTokenDays);
         return (token, expires);
     }
-
-    public Guid? GetUserIdFromExpiredToken(string token)
-    {
-        try
-        {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Key));
-            var handler = new JwtSecurityTokenHandler();
-            var validation = handler.ValidateToken(token, new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = false,
-                ValidateIssuerSigningKey = true,
-                ValidIssuer = _options.Issuer,
-                ValidAudience = _options.Audience,
-                IssuerSigningKey = key,
-                ClockSkew = TimeSpan.FromMinutes(2)
-            }, out _);
-
-            var sub = validation.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
-                      ?? validation.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            return Guid.TryParse(sub, out var id) ? id : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
 }

@@ -12,14 +12,13 @@ public interface IJwtTokenService
 {
     string CreateAccessToken(Guid userId, Guid tenantId, string email, string role);
     (string Token, DateTime ExpiresAt) CreateRefreshToken();
-    Guid? GetUserIdFromExpiredToken(string token);
 }
 
 public interface IRefreshTokenStore
 {
     Task SaveAsync(Guid userId, string token, DateTime expiresAt, CancellationToken ct = default);
-    Task<bool> ValidateAsync(Guid userId, string token, CancellationToken ct = default);
-    Task RevokeAsync(Guid userId, string token, CancellationToken ct = default);
+    Task<Guid?> FindUserIdAsync(string token, CancellationToken ct = default);
+    Task RevokeAsync(string token, CancellationToken ct = default);
 }
 
 public interface IStripeGateway

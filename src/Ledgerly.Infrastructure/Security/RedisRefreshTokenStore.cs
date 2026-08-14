@@ -5,29 +5,32 @@ namespace Ledgerly.Infrastructure.Security;
 
 public class RedisRefreshTokenStore : IRefreshTokenStore
 {
+    private const string KeyPrefix = "refresh:token:";
     private readonly IConnectionMultiplexer _redis;
 
     public RedisRefreshTokenStore(IConnectionMultiplexer redis) => _redis = redis;
 
-    private static string Key(Guid userId, string token) => $"refresh:{userId}:{token}";
+    private static string Key(string token) => $"{KeyPrefix}{token}";
 
     public async Task SaveAsync(Guid userId, string token, DateTime expiresAt, CancellationToken ct = default)
     {
         var db = _redis.GetDatabase();
         var ttl = expiresAt - DateTime.UtcNow;
         if (ttl <= TimeSpan.Zero) return;
-        await db.StringSetAsync(Key(userId, token), "1", ttl);
+        await db.StringSetAsync(Key(token), userId.ToString(), ttl);
     }
 
-    public async Task<bool> ValidateAsync(Guid userId, string token, CancellationToken ct = default)
+    public async Task<Guid?> FindUserIdAsync(string token, CancellationToken ct = default)
     {
         var db = _redis.GetDatabase();
-        return await db.KeyExistsAsync(Key(userId, token));
+        var val = await db.StringGetAsync(Key(token));
+        if (!val.HasValue) return null;
+        return Guid.TryParse(val.ToString(), out var id) ? id : null;
     }
 
-    public async Task RevokeAsync(Guid userId, string token, CancellationToken ct = default)
+    public async Task RevokeAsync(string token, CancellationToken ct = default)
     {
         var db = _redis.GetDatabase();
-        await db.KeyDeleteAsync(Key(userId, token));
+        await db.KeyDeleteAsync(Key(token));
     }
 }

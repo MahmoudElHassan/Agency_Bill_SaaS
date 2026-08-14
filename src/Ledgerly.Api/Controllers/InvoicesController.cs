@@ -49,6 +49,7 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/void")]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> Void(Guid id, [FromServices] VoidInvoiceHandler handler, CancellationToken ct)
     {
         var result = await handler.HandleAsync(id, ct);
