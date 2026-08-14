@@ -80,6 +80,7 @@ public static class DependencyInjection
         services.AddScoped<VoidInvoiceHandler>();
         services.AddScoped<PublicInvoiceHandler>();
         services.AddScoped<PublicPayHandler>();
+        services.AddScoped<MarkOverdueInvoicesHandler>();
 
         services.AddScoped<ListPlansHandler>();
         services.AddScoped<CheckoutHandler>();

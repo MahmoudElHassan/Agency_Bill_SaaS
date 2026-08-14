@@ -1,5 +1,6 @@
 using Ledgerly.Api.Middleware;
 using Ledgerly.Application.Billing;
+using Ledgerly.Application.Invoices;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ledgerly.Api.Controllers;
@@ -9,12 +10,18 @@ namespace Ledgerly.Api.Controllers;
 public class DevWebhookController : ControllerBase
 {
     private readonly StripeWebhookHandler _handler;
+    private readonly MarkOverdueInvoicesHandler _overdue;
     private readonly IConfiguration _config;
     private readonly IHostEnvironment _env;
 
-    public DevWebhookController(StripeWebhookHandler handler, IConfiguration config, IHostEnvironment env)
+    public DevWebhookController(
+        StripeWebhookHandler handler,
+        MarkOverdueInvoicesHandler overdue,
+        IConfiguration config,
+        IHostEnvironment env)
     {
         _handler = handler;
+        _overdue = overdue;
         _config = config;
         _env = env;
     }
@@ -36,6 +43,16 @@ public class DevWebhookController : ControllerBase
         var stripeEventId = "evt_dev_" + Guid.NewGuid().ToString("N");
         var payload = new StripeWebhookPayload(stripeEventId, type, tenantId, invoiceId, customerId, subscriptionId, priceId, paymentIntentId);
         var result = await _handler.HandleAsync(payload, ct);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("jobs/mark-overdue")]
+    public async Task<IActionResult> MarkOverdue(CancellationToken ct)
+    {
+        if (!_env.IsDevelopment())
+            return NotFound();
+
+        var result = await _overdue.HandleAsync(ct);
         return result.ToActionResult();
     }
 }

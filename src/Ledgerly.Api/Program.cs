@@ -1,5 +1,6 @@
 using Ledgerly.Api.Middleware;
 using Ledgerly.Application.Abstractions;
+using Ledgerly.Application.Invoices;
 using Ledgerly.Infrastructure;
 using Ledgerly.Infrastructure.Persistence;
 using Ledgerly.Infrastructure.Stripe;
@@ -12,6 +13,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Ledgerly.Infrastructure.Security;
+using Hangfire;
+using Hangfire.PostgreSql;
+using Hangfire.MemoryStorage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -100,6 +104,20 @@ builder.Services.AddCors(o => o.AddPolicy("Dev", p => p
     .AllowAnyMethod()
     .WithOrigins("http://localhost:5173", "http://localhost:3000")));
 
+var useInMemoryHangfire = builder.Environment.IsDevelopment() &&
+    builder.Configuration.GetValue<bool>("Hangfire:UseInMemory");
+
+if (useInMemoryHangfire)
+{
+    builder.Services.AddHangfire(c => c.UseMemoryStorage());
+}
+else
+{
+    var pgConn = builder.Configuration.GetConnectionString("Default")!;
+    builder.Services.AddHangfire(c => c.UsePostgreSqlStorage(pgConn));
+}
+builder.Services.AddHangfireServer();
+
 var app = builder.Build();
 
 app.UseMiddleware<ApiExceptionMiddleware>();
@@ -122,11 +140,38 @@ app.MapHealthChecks("/health");
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseHangfireDashboard("/hangfire");
+}
+
+if (app.Environment.IsDevelopment())
+{
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }
 
+RecurringJob.AddOrUpdate<MarkOverdueInvoicesJob>(
+    "mark-overdue-hourly",
+    job => job.RunAsync(),
+    Cron.Hourly);
+
 app.Run();
 
 public partial class Program { }
+
+public class MarkOverdueInvoicesJob
+{
+    private readonly IServiceScopeFactory _scopes;
+    public MarkOverdueInvoicesJob(IServiceScopeFactory scopes) => _scopes = scopes;
+
+    public async Task RunAsync()
+    {
+        using var scope = _scopes.CreateScope();
+        var handler = scope.ServiceProvider.GetRequiredService<MarkOverdueInvoicesHandler>();
+        var result = await handler.HandleAsync();
+        if (result.IsFailure)
+        {
+            throw new InvalidOperationException($"mark overdue failed: {result.Error.Code}");
+        }
+    }
+}
