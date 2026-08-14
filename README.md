@@ -1,4 +1,4 @@
-# Ledgerly
+# Agency_Bill_SaaS
 
 A multi-tenant B2B invoicing SaaS for small agencies.
 Built with ASP.NET Core 9 + Clean Architecture, PostgreSQL 16, Redis 7, Stripe Billing.
