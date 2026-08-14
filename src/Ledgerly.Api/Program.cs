@@ -51,6 +51,7 @@ var jwtOptions = new JwtOptions
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
+        o.MapInboundClaims = false;
         o.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -60,7 +61,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = jwtOptions.Issuer,
             ValidAudience = jwtOptions.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
-            ClockSkew = TimeSpan.FromMinutes(2)
+            ClockSkew = TimeSpan.FromMinutes(2),
+            NameClaimType = "sub",
+            RoleClaimType = "role"
         };
     });
 builder.Services.AddAuthorization();
@@ -71,9 +74,8 @@ builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<ICurrentTenant>(sp =>
 {
-    var http = sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
-    if (http is null) return new CurrentTenant { TenantId = Guid.Empty };
-    return http.CurrentTenant();
+    var accessor = sp.GetRequiredService<IHttpContextAccessor>();
+    return new HttpContextCurrentTenant(accessor);
 });
 
 builder.Services.AddHealthChecks()

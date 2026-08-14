@@ -14,11 +14,14 @@ public class TenantMiddleware
         var tid = context.User.FindFirst("tid")?.Value
                   ?? context.User.FindFirst("tenant")?.Value
                   ?? context.Request.Query["tenantId"].ToString();
-        var sub = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+        var sub = context.User.FindFirst("sub")?.Value
+                  ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                   ?? context.User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
-        var email = context.User.FindFirst(ClaimTypes.Email)?.Value
+        var email = context.User.FindFirst("email")?.Value
+                    ?? context.User.FindFirst(ClaimTypes.Email)?.Value
                     ?? context.User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value;
-        var role = context.User.FindFirst(ClaimTypes.Role)?.Value ?? "Staff";
+        var role = context.User.FindFirst("role")?.Value
+                   ?? context.User.FindFirst(ClaimTypes.Role)?.Value ?? "Staff";
 
         var tenantId = Guid.TryParse(tid, out var t) ? t : Guid.Empty;
         var userId = Guid.TryParse(sub, out var u) ? u : (Guid?)null;
@@ -44,4 +47,18 @@ public static class HttpContextExtensions
         if (ctx.Items.TryGetValue(key, out var val) && val is ICurrentTenant current) return current;
         return new CurrentTenant { TenantId = Guid.Empty };
     }
+}
+
+public sealed class HttpContextCurrentTenant : ICurrentTenant
+{
+    private readonly IHttpContextAccessor _accessor;
+    public HttpContextCurrentTenant(IHttpContextAccessor accessor) => _accessor = accessor;
+
+    private ICurrentTenant Inner => _accessor.HttpContext?.CurrentTenant() ?? new CurrentTenant { TenantId = Guid.Empty };
+
+    public Guid TenantId => Inner.TenantId;
+    public Guid? UserId => Inner.UserId;
+    public string? UserEmail => Inner.UserEmail;
+    public bool IsAuthenticated => Inner.IsAuthenticated;
+    public bool IsOwner => Inner.IsOwner;
 }

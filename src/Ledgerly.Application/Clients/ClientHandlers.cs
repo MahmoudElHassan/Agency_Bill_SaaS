@@ -20,6 +20,9 @@ public sealed class CreateClientHandler
         Guard.AgainstNullOrWhiteSpace(request.Name, nameof(request.Name));
         Guard.AgainstNullOrWhiteSpace(request.Email, nameof(request.Email));
 
+        if (_current.TenantId == Guid.Empty)
+            return Result.Failure<ClientDto>(Error.Unauthorized);
+
         var client = new Client
         {
             TenantId = _current.TenantId,
