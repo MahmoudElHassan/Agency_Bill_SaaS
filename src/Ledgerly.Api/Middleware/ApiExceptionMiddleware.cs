@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Ledgerly.Shared;
 using Microsoft.Extensions.Logging;
+using Stripe;
 
 namespace Ledgerly.Api.Middleware;
 
@@ -20,6 +21,17 @@ public class ApiExceptionMiddleware
         try
         {
             await _next(context);
+        }
+        catch (StripeException ex)
+        {
+            _log.LogWarning(ex, "Stripe error at {Path}", context.Request.Path);
+            if (context.Response.HasStarted) throw;
+
+            context.Response.Clear();
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            context.Response.ContentType = "application/json";
+            var body = ApiResponse.Fail("stripe_error", ex.StripeError?.Message ?? "Stripe error");
+            await context.Response.WriteAsync(JsonSerializer.Serialize(body));
         }
         catch (Exception ex)
         {
