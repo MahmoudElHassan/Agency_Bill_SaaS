@@ -36,6 +36,13 @@ public class StripeGateway : IStripeGateway
             Metadata = new Dictionary<string, string>
             {
                 ["tenantId"] = tenantId.ToString()
+            },
+            SubscriptionData = new SessionSubscriptionDataOptions
+            {
+                Metadata = new Dictionary<string, string>
+                {
+                    ["tenantId"] = tenantId.ToString()
+                }
             }
         }, cancellationToken: ct);
 

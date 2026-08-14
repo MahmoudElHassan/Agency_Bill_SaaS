@@ -45,6 +45,12 @@ public static class DependencyInjection
         var stripeWebhook = config["Stripe:WebhookSecret"] ?? "";
         services.AddSingleton<IStripeGateway>(_ => new StripeGateway(stripeSecret, stripeWebhook));
 
+        services.Configure<Ledgerly.Application.Billing.StripePriceOptions>(opts =>
+        {
+            opts.PricePro = config["Stripe:PricePro"];
+            opts.PriceBusiness = config["Stripe:PriceBusiness"];
+        });
+
         services.AddSingleton<IEmailSender, ConsoleEmailSender>();
         services.AddSingleton<IDateTime, SystemDateTime>();
 

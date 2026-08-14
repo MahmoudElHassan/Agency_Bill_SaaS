@@ -152,6 +152,9 @@ public sealed class VoidInvoiceHandler
         if (invoice is null || invoice.TenantId != _current.TenantId)
             return Result.Failure<InvoiceDto>(Error.NotFound);
 
+        if (invoice.Status == InvoiceStatus.Paid)
+            return Result.Failure<InvoiceDto>(Error.InvalidState);
+
         invoice.Status = InvoiceStatus.Void;
         invoice.UpdatedAt = DateTime.UtcNow;
         await _invoices.UpdateAsync(invoice, ct);

@@ -31,6 +31,7 @@ public class Invoice : TenantEntity
     public void ClearLines()
     {
         Lines.Clear();
+        RecalculateTotals();
     }
 
     public void RecalculateTotals()

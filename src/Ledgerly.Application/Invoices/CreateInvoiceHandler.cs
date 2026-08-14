@@ -69,11 +69,15 @@ public sealed class CreateInvoiceHandler
             });
         }
 
-        invoice.Number = $"INV-{invoice.IssueDate.Year}-{(await _invoices.NextSequenceForYearAsync(_current.TenantId, invoice.IssueDate.Year, ct) + 1):0000}";
+        const int maxAttempts = 3;
+        var initialNext = await _invoices.NextSequenceForYearAsync(_current.TenantId, invoice.IssueDate.Year, ct) + 1;
+        invoice.Number = $"INV-{invoice.IssueDate.Year}-{initialNext:0000}";
 
-        await _invoices.AddAsync(invoice, ct);
-        await _invoices.SaveChangesAsync(ct);
-        return Result.Success(invoice.ToDto());
+        var outcome = await _invoices.AddWithUniqueNumberRetryAsync(invoice, maxAttempts, ct);
+        if (outcome == AddOutcome.Created)
+            return Result.Success(invoice.ToDto());
+
+        return Result.Failure<InvoiceDto>(Error.FromMessage("number_collision", "Could not allocate a unique invoice number."));
     }
 
     private static string GenerateToken()

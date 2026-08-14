@@ -43,11 +43,13 @@ public interface IInvoiceRepository
         Guid tenantId, InvoiceStatus? status, int page, int pageSize, CancellationToken ct = default);
     Task<int> CountInMonthAsync(Guid tenantId, int year, int month, CancellationToken ct = default);
     Task<int> NextSequenceForYearAsync(Guid tenantId, int year, CancellationToken ct = default);
-    Task AddAsync(Invoice invoice, CancellationToken ct = default);
+    Task<AddOutcome> AddWithUniqueNumberRetryAsync(Invoice invoice, int maxAttempts, CancellationToken ct = default);
     Task UpdateAsync(Invoice invoice, CancellationToken ct = default);
     Task<IReadOnlyList<Invoice>> ListOverdueDueAsync(DateTime today, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);
 }
+
+public enum AddOutcome { Created, Failed }
 
 public interface IWebhookEventRepository
 {

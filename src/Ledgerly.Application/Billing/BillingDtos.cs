@@ -10,6 +10,22 @@ public sealed record CheckoutResponse(string Url);
 
 public sealed record BillingStatusResponse(string Plan, string Status, string? StripeCustomerId, string? StripeSubscriptionId);
 
+public sealed record StripeWebhookPayload(
+    string StripeEventId,
+    string Type,
+    Guid? TenantId,
+    Guid? InvoiceId,
+    string? CustomerId,
+    string? SubscriptionId,
+    string? PriceId,
+    string? PaymentIntentId);
+
+public sealed class StripePriceOptions
+{
+    public string? PricePro { get; set; }
+    public string? PriceBusiness { get; set; }
+}
+
 public static class PlanCatalog
 {
     public static readonly IReadOnlyList<PlanDto> All = new List<PlanDto>
@@ -26,4 +42,12 @@ public static class PlanCatalog
         "business" => Plan.Business,
         _ => Plan.Free
     };
+
+    public static Plan? FromPriceId(string? priceId, StripePriceOptions opts)
+    {
+        if (string.IsNullOrWhiteSpace(priceId)) return null;
+        if (!string.IsNullOrWhiteSpace(opts.PricePro) && priceId == opts.PricePro) return Plan.Pro;
+        if (!string.IsNullOrWhiteSpace(opts.PriceBusiness) && priceId == opts.PriceBusiness) return Plan.Business;
+        return null;
+    }
 }

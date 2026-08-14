@@ -141,9 +141,37 @@ public class InvoiceRepository : IInvoiceRepository
     public async Task AddAsync(Invoice invoice, CancellationToken ct = default) =>
         await _db.Invoices.AddAsync(invoice, ct);
 
+    public async Task<AddOutcome> AddWithUniqueNumberRetryAsync(Invoice invoice, int maxAttempts, CancellationToken ct = default)
+    {
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            await _db.Invoices.AddAsync(invoice, ct);
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+                return AddOutcome.Created;
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException?.Message.Contains("IX_Invoices_TenantId_Number") == true ||
+                ex.InnerException?.Message.Contains("duplicate key") == true)
+            {
+                _db.ChangeTracker.Clear();
+                var next = await NextSequenceForYearAsync(invoice.TenantId, invoice.IssueDate.Year, ct) + 1;
+                invoice.Number = $"INV-{invoice.IssueDate.Year}-{next:0000}";
+            }
+        }
+        return AddOutcome.Failed;
+    }
+
     public Task UpdateAsync(Invoice invoice, CancellationToken ct = default)
     {
         invoice.UpdatedAt = DateTime.UtcNow;
+        return Task.CompletedTask;
+    }
+
+    public Task ResetTracking()
+    {
+        _db.ChangeTracker.Clear();
         return Task.CompletedTask;
     }
 

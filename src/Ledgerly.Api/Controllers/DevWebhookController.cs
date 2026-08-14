@@ -20,13 +20,22 @@ public class DevWebhookController : ControllerBase
     }
 
     [HttpPost("webhook/{tenantId}")]
-    public async Task<IActionResult> Simulate(Guid tenantId, [FromQuery] string type, [FromQuery] Guid? invoiceId, CancellationToken ct)
+    public async Task<IActionResult> Simulate(
+        Guid tenantId,
+        [FromQuery] string type,
+        [FromQuery] Guid? invoiceId,
+        [FromQuery] string? customerId,
+        [FromQuery] string? subscriptionId,
+        [FromQuery] string? priceId,
+        [FromQuery] string? paymentIntentId,
+        CancellationToken ct)
     {
         if (!_env.IsDevelopment() || !_config.GetValue<bool>("Dev:EnableWebhookSimulator"))
             return NotFound();
 
         var stripeEventId = "evt_dev_" + Guid.NewGuid().ToString("N");
-        var result = await _handler.HandleAsync(stripeEventId, type, tenantId, invoiceId, ct);
+        var payload = new StripeWebhookPayload(stripeEventId, type, tenantId, invoiceId, customerId, subscriptionId, priceId, paymentIntentId);
+        var result = await _handler.HandleAsync(payload, ct);
         return result.ToActionResult();
     }
 }
