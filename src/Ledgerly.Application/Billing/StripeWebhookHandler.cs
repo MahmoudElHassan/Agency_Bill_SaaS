@@ -37,23 +37,6 @@ public sealed class StripeWebhookHandler
             return Result.Success();
         }
 
-        await _events.AddAsync(new WebhookEvent
-        {
-            StripeEventId = payload.StripeEventId,
-            Type = payload.Type,
-            ProcessedAt = DateTime.UtcNow
-        }, ct);
-
-        try
-        {
-            await _events.SaveChangesAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "Duplicate or failed webhook event insert: {Id}", payload.StripeEventId);
-            return Result.Success();
-        }
-
         switch (payload.Type)
         {
             case "checkout.session.completed":
@@ -73,6 +56,26 @@ public sealed class StripeWebhookHandler
                 break;
         }
 
+        // #region agent log
+        try { System.IO.File.AppendAllText("/Users/mhamoud.elhassan10/AI & Projects/VSCode/Ledgerly/.cursor/debug-211c62.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "211c62", hypothesisId = "H4", location = "StripeWebhookHandler.HandleAsync", message = "event persisted after apply", data = new { type = payload.Type, hasTenant = payload.TenantId.HasValue, hasInvoice = payload.InvoiceId.HasValue, hasPrice = !string.IsNullOrWhiteSpace(payload.PriceId) }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), runId = "post-fix" }) + "\n"); } catch { }
+        // #endregion
+
+        await _events.AddAsync(new WebhookEvent
+        {
+            StripeEventId = payload.StripeEventId,
+            Type = payload.Type,
+            ProcessedAt = DateTime.UtcNow
+        }, ct);
+
+        try
+        {
+            await _events.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Duplicate or failed webhook event insert: {Id}", payload.StripeEventId);
+        }
+
         return Result.Success();
     }
 
@@ -90,8 +93,16 @@ public sealed class StripeWebhookHandler
             tenant.StripeCustomerId = p.CustomerId;
         if (!string.IsNullOrWhiteSpace(p.SubscriptionId))
             tenant.StripeSubscriptionId = p.SubscriptionId;
+
+        var planFromPrice = PlanCatalog.FromPriceId(p.PriceId, _priceOptions);
+        if (planFromPrice.HasValue)
+            tenant.Plan = planFromPrice.Value;
+
         tenant.PlanStatus = PlanStatus.Active;
         tenant.UpdatedAt = DateTime.UtcNow;
+        // #region agent log
+        try { System.IO.File.AppendAllText("/Users/mhamoud.elhassan10/AI & Projects/VSCode/Ledgerly/.cursor/debug-211c62.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "211c62", hypothesisId = "H3", location = "StripeWebhookHandler.ApplyCheckoutCompletedAsync", message = "checkout completed plan fields", data = new { planBeforeSave = tenant.Plan.ToString(), planStatus = tenant.PlanStatus.ToString(), priceIdPresent = !string.IsNullOrWhiteSpace(p.PriceId), planFieldUnchanged = false }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), runId = "post-fix" }) + "\n"); } catch { }
+        // #endregion
         await _tenants.SaveChangesAsync(ct);
     }
 
