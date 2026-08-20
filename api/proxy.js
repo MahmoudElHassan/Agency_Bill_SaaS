@@ -1,8 +1,5 @@
-/**
- * Proxies /api/* to the .NET backend (API_PROXY_URL or VITE_API_URL on Vercel).
- * Without this, SPA rewrites would 404 on auth/login.
- */
-export default async function handler(req, res) {
+/** Proxies /api/* to the .NET backend. Invoked via vercel.json rewrite for nested paths. */
+module.exports = async (req, res) => {
   const backend = (process.env.API_PROXY_URL || process.env.VITE_API_URL || "").replace(/\/$/, "");
 
   if (!backend) {
@@ -12,14 +9,16 @@ export default async function handler(req, res) {
       success: false,
       error: {
         code: "api_not_configured",
-        message: "Set API_PROXY_URL in Vercel to your deployed .NET API URL (e.g. https://your-api.onrender.com)."
+        message: "Set API_PROXY_URL in Vercel Environment Variables to your deployed .NET API URL, then redeploy."
       }
     }));
     return;
   }
 
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const target = `${backend}${url.pathname}${url.search}`;
+  const subPath = typeof req.query.path === "string" ? req.query.path : "";
+  const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  const qs = url.search || "";
+  const target = `${backend}/api/${subPath}${qs}`;
 
   const headers = { ...req.headers };
   delete headers.host;
@@ -33,29 +32,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    const upstream = await fetch(target, {
-      method: req.method,
-      headers,
-      body
-    });
-
+    const upstream = await fetch(target, { method: req.method, headers, body });
     res.statusCode = upstream.status;
     upstream.headers.forEach((value, key) => {
       if (key.toLowerCase() === "transfer-encoding") return;
       res.setHeader(key, value);
     });
-
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    res.end(buf);
-  } catch (err) {
+    res.end(Buffer.from(await upstream.arrayBuffer()));
+  } catch {
     res.statusCode = 502;
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({
       success: false,
-      error: {
-        code: "upstream_error",
-        message: `Cannot reach backend at ${backend}.`
-      }
+      error: { code: "upstream_error", message: `Cannot reach backend at ${backend}.` }
     }));
   }
-}
+};

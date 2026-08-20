@@ -6,6 +6,6 @@
   },
   "scripts": {
     "build": "npm --prefix frontend ci && npm --prefix frontend run build",
-    "vercel-build": "npm --prefix frontend ci && npm --prefix frontend run build"
+    "vercel-build": "node scripts/prepare-vercel.mjs && npm --prefix frontend ci && npm --prefix frontend run build"
   }
 }
