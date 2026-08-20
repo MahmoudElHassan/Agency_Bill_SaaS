@@ -1,3 +1,4 @@
 #!/bin/sh
 export ASPNETCORE_URLS="http://0.0.0.0:${PORT:-5080}"
+export DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE="${DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE:-false}"
 exec dotnet Ledgerly.Api.dll

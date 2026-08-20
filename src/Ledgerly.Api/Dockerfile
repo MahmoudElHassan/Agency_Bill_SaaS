@@ -15,5 +15,7 @@ WORKDIR /app
 COPY --from=build /app .
 COPY src/Ledgerly.Api/docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+# Render free instances hit Linux inotify limits if ASP.NET watches appsettings.json.
+ENV DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false
 EXPOSE 5080
 ENTRYPOINT ["/entrypoint.sh"]
