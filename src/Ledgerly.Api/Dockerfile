@@ -13,6 +13,7 @@ RUN dotnet publish src/Ledgerly.Api/Ledgerly.Api.csproj -c Release -o /app /p:Us
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
-ENV ASPNETCORE_URLS=http://+:5080
+COPY src/Ledgerly.Api/docker-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 EXPOSE 5080
-ENTRYPOINT ["dotnet", "Ledgerly.Api.dll"]
+ENTRYPOINT ["/entrypoint.sh"]
