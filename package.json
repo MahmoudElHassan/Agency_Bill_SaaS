@@ -1,8 +1,11 @@
 {
   "name": "agency-bill-saas",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
-    "build": "npm --prefix frontend run build",
-    "vercel-build": "npm --prefix frontend run build"
+    "build": "npm --prefix frontend ci && npm --prefix frontend run build",
+    "vercel-build": "npm --prefix frontend ci && npm --prefix frontend run build"
   }
 }
