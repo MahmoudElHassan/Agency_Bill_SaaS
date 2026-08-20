@@ -47,7 +47,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var jwtOptions = new JwtOptions
 {
-    Key = builder.Configuration["Jwt:Key"] ?? string.Empty,
+    Key = builder.Configuration["Jwt:Key"] ?? builder.Configuration["JWT_KEY"] ?? string.Empty,
     Issuer = builder.Configuration["Jwt:Issuer"] ?? "ledgerly",
     Audience = builder.Configuration["Jwt:Audience"] ?? "ledgerly"
 };
@@ -89,8 +89,14 @@ builder.Services.AddScoped<ICurrentTenant>(sp =>
     return new HttpContextCurrentTenant(accessor);
 });
 
+var postgresConnection = ConnectionStringNormalizer.Postgres(
+    builder.Configuration.GetConnectionString("Default") ?? builder.Configuration["DATABASE_URL"]);
+var redisConnection = ConnectionStringNormalizer.Redis(
+    builder.Configuration.GetConnectionString("Redis") ?? builder.Configuration["REDIS_URL"] ?? "localhost:6379");
+
 builder.Services.AddHealthChecks()
-    .AddNpgSql(builder.Configuration.GetConnectionString("Default") ?? "Host=localhost;Database=ledgerly;Username=postgres;Password=postgres");
+    .AddNpgSql(postgresConnection, name: "postgres")
+    .AddRedis(redisConnection, name: "redis");
 
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("Ledgerly.Api"))
@@ -109,7 +115,8 @@ builder.Services.AddCors(o =>
         .WithOrigins(origins));
 });
 
-var disableHangfire = builder.Configuration.GetValue<bool>("Hangfire:Disabled");
+var disableHangfire = builder.Configuration.GetValue<bool?>("Hangfire:Disabled")
+    ?? !builder.Environment.IsDevelopment();
 if (!disableHangfire)
 {
     var useInMemoryHangfire = builder.Environment.IsDevelopment() &&
@@ -121,7 +128,7 @@ if (!disableHangfire)
     }
     else
     {
-        var pgConn = builder.Configuration.GetConnectionString("Default")!;
+        var pgConn = postgresConnection;
         builder.Services.AddHangfire(c => c.UsePostgreSqlStorage(pgConn));
     }
     builder.Services.AddHangfireServer();
@@ -145,19 +152,40 @@ app.UseAuthorization();
 app.UseMiddleware<TenantMiddleware>();
 
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapGet("/", () => Results.Json(new
+{
+    name = "AgencyBill API",
+    status = "running",
+    health = "/health",
+    login = "POST /api/auth/login"
+}));
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var payload = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                error = e.Value.Exception?.Message
+            })
+        };
+        await context.Response.WriteAsJsonAsync(payload);
+    }
+});
 
 if (app.Environment.IsDevelopment() && !disableHangfire)
 {
     app.UseHangfireDashboard("/hangfire");
 }
 
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-}
+using var scope = app.Services.CreateScope();
+var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+db.Database.Migrate();
 
 if (!disableHangfire)
 {

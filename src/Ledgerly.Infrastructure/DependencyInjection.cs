@@ -18,18 +18,19 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddLedgerlyInfrastructure(this IServiceCollection services, IConfiguration config)
     {
-        var connection = config.GetConnectionString("Default")
-            ?? throw new InvalidOperationException("ConnectionStrings:Default is required");
+        var connection = ConnectionStringNormalizer.Postgres(
+            config.GetConnectionString("Default") ?? config["DATABASE_URL"]);
         services.AddDbContext<AppDbContext>(opts => opts.UseNpgsql(connection));
 
-        var redisConn = config.GetConnectionString("Redis") ?? "localhost:6379";
+        var redisConn = ConnectionStringNormalizer.Redis(
+            config.GetConnectionString("Redis") ?? config["REDIS_URL"] ?? "localhost:6379");
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn));
 
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 
         var jwtOptions = new JwtOptions
         {
-            Key = config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is required"),
+            Key = config["Jwt:Key"] ?? config["JWT_KEY"] ?? throw new InvalidOperationException("Jwt:Key is required"),
             Issuer = config["Jwt:Issuer"] ?? "ledgerly",
             Audience = config["Jwt:Audience"] ?? "ledgerly",
             AccessTokenMinutes = int.TryParse(config["Jwt:AccessTokenMinutes"], out var m) ? m : 60,
