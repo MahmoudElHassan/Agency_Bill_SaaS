@@ -61,12 +61,14 @@ const devFallback = "http://localhost:5080";
 export function getApiBaseUrl(): string {
   if (configuredUrl) return configuredUrl;
   if (import.meta.env.DEV) return devFallback;
+  // Production: same-origin /api/* is proxied by Vercel serverless (api/[...path].js)
+  if (typeof window !== "undefined") return window.location.origin;
   return "";
 }
 
 export function getApiConfigError(): string | null {
-  if (getApiBaseUrl()) return null;
-  return "API URL is not configured. Set VITE_API_URL in Vercel (Environment Variables) to your deployed backend URL.";
+  if (import.meta.env.DEV && !configuredUrl) return null;
+  return null;
 }
 
 async function parseEnvelope<T>(res: Response): Promise<ApiEnvelope<T>> {
@@ -77,6 +79,9 @@ async function parseEnvelope<T>(res: Response): Promise<ApiEnvelope<T>> {
   try {
     return JSON.parse(text) as ApiEnvelope<T>;
   } catch {
+    if (text.trimStart().startsWith("<!") || text.includes("<html")) {
+      throw new Error("API returned HTML instead of JSON. Set API_PROXY_URL on Vercel to your .NET backend URL.");
+    }
     throw new Error(res.ok ? "Invalid API response" : `API error (${res.status}): ${text.slice(0, 120)}`);
   }
 }

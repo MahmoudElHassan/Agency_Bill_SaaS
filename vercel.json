@@ -4,6 +4,6 @@
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
-    { "source": "/((?!assets/|favicon\\.svg|icons\\.svg).*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|favicon\\.svg|icons\\.svg|api).*)", "destination": "/index.html" }
   ]
 }

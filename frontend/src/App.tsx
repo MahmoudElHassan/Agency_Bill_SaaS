@@ -40,7 +40,7 @@ function App() {
       <main>
         {configError && <p className="error">{configError}</p>}
         {!auth ? (
-          <Login onAuth={onAuth} disabled={!!configError} />
+          <Login onAuth={onAuth} />
         ) : (
           <Dashboard auth={auth} onLogout={onLogout} />
         )}

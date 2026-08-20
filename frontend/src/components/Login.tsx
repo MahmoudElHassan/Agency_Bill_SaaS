@@ -3,7 +3,7 @@ import { api, type AuthResponse } from "../api";
 
 type Mode = "login" | "register";
 
-export default function Login({ onAuth, disabled = false }: { onAuth: (a: AuthResponse) => void; disabled?: boolean }) {
+export default function Login({ onAuth }: { onAuth: (a: AuthResponse) => void }) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,7 +41,7 @@ export default function Login({ onAuth, disabled = false }: { onAuth: (a: AuthRe
         <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
         <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} /></label>
         {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy || disabled}>{busy ? "…" : mode === "login" ? "Log in" : "Register"}</button>
+        <button type="submit" disabled={busy}>{busy ? "…" : mode === "login" ? "Log in" : "Register"}</button>
       </form>
       <p>
         {mode === "login" ? "New here? " : "Already have an account? "}
