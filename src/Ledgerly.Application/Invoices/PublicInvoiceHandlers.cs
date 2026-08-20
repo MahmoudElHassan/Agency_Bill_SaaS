@@ -45,10 +45,6 @@ public sealed class PublicPayHandler
         if (invoice.Status != InvoiceStatus.Sent)
             return Result.Failure<PayResponse>(Error.InvalidState);
 
-        // #region agent log
-        try { System.IO.File.AppendAllText("/Users/mhamoud.elhassan10/AI & Projects/VSCode/Ledgerly/.cursor/debug-211c62.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "211c62", hypothesisId = "H2", location = "PublicPayHandler.HandleAsync", message = "public pay allowed", data = new { status = invoice.Status.ToString(), draftAllowed = invoice.Status == InvoiceStatus.Draft }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), runId = "post-fix" }) + "\n"); } catch { }
-        // #endregion
-
         var amount = (long)decimal.Round(invoice.Total * 100m, 0, MidpointRounding.AwayFromZero);
         var result = _stripe.CreatePaymentIntent(amount, invoice.Currency.ToLowerInvariant(), invoice.Id, invoice.TenantId);
         invoice.StripePaymentIntentId = result.PaymentIntentId;

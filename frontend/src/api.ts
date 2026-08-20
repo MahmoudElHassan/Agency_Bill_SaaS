@@ -55,32 +55,69 @@ export interface PlanDto {
   features: string[];
 }
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5080";
+const configuredUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
+const devFallback = "http://localhost:5080";
+
+export function getApiBaseUrl(): string {
+  if (configuredUrl) return configuredUrl;
+  if (import.meta.env.DEV) return devFallback;
+  return "";
+}
+
+export function getApiConfigError(): string | null {
+  if (getApiBaseUrl()) return null;
+  return "API URL is not configured. Set VITE_API_URL in Vercel (Environment Variables) to your deployed backend URL.";
+}
+
+async function parseEnvelope<T>(res: Response): Promise<ApiEnvelope<T>> {
+  const text = await res.text();
+  if (!text) {
+    throw new Error(res.ok ? "Empty API response" : `API error (${res.status})`);
+  }
+  try {
+    return JSON.parse(text) as ApiEnvelope<T>;
+  } catch {
+    throw new Error(res.ok ? "Invalid API response" : `API error (${res.status}): ${text.slice(0, 120)}`);
+  }
+}
 
 async function call<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    throw new Error(getApiConfigError() ?? "API URL is not configured.");
+  }
+
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}${path}`, { ...init, headers });
+  } catch {
+    throw new Error(`Cannot reach API at ${baseUrl}. Check that the backend is running and CORS allows this site.`);
+  }
+
   if (res.status === 401 && token) {
-    const stored = localStorage.getItem("ledgerly.auth");
+    const stored = localStorage.getItem("agencybill.auth");
     if (stored) {
       const parsed = JSON.parse(stored) as AuthResponse;
       try {
         const refreshed = await api.refresh(parsed.refreshToken);
-        localStorage.setItem("ledgerly.auth", JSON.stringify(refreshed));
+        localStorage.setItem("agencybill.auth", JSON.stringify(refreshed));
         headers.set("Authorization", `Bearer ${refreshed.accessToken}`);
-        const retry = await fetch(`${BASE_URL}${path}`, { ...init, headers });
-        const retryBody = (await retry.json()) as ApiEnvelope<T>;
+        const retry = await fetch(`${baseUrl}${path}`, { ...init, headers });
+        const retryBody = await parseEnvelope<T>(retry);
         if (!retryBody.success) throw new Error(retryBody.error?.message ?? "Request failed");
         return retryBody.data as T;
       } catch {
-        localStorage.removeItem("ledgerly.auth");
+        localStorage.removeItem("agencybill.auth");
         throw new Error("Session expired");
       }
     }
   }
-  const body = (await res.json()) as ApiEnvelope<T>;
+
+  const body = await parseEnvelope<T>(res);
   if (!body.success) {
     throw new Error(body.error?.message ?? "Request failed");
   }

@@ -99,10 +99,15 @@ builder.Services.AddOpenTelemetry()
         .AddEntityFrameworkCoreInstrumentation()
         .AddConsoleExporter());
 
-builder.Services.AddCors(o => o.AddPolicy("Dev", p => p
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .WithOrigins("http://localhost:5173", "http://localhost:3000")));
+builder.Services.AddCors(o =>
+{
+    var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
+        ?? ["http://localhost:5173", "http://localhost:3000"];
+    o.AddPolicy("Dev", p => p
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .WithOrigins(origins));
+});
 
 var disableHangfire = builder.Configuration.GetValue<bool>("Hangfire:Disabled");
 if (!disableHangfire)

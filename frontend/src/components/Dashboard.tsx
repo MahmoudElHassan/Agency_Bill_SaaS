@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type AuthResponse, type ClientDto, type InvoiceDto } from "../api";
+import { api, getApiBaseUrl, type AuthResponse, type ClientDto, type InvoiceDto } from "../api";
 
 const STATUS_LABEL = ["Draft", "Sent", "Paid", "Overdue", "Void"];
 
@@ -134,7 +134,9 @@ function InvoicesTab({ auth, clients, invoices, onChange }: { auth: AuthResponse
               <td>{STATUS_LABEL[i.status]}</td>
               <td>
                 {i.status === 0 && <button onClick={() => send(i.id)}>Send</button>}
-                {i.publicPayToken && <a href={`${import.meta.env.VITE_API_URL ?? "http://localhost:5080"}/api/public/invoices/${i.publicPayToken}`} target="_blank">Pay link</a>}
+                {i.publicPayToken && getApiBaseUrl() && (
+                  <a href={`${getApiBaseUrl()}/api/public/invoices/${i.publicPayToken}`} target="_blank" rel="noreferrer">Pay link</a>
+                )}
               </td>
             </tr>
           ))}

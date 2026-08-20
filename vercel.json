@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install --prefix frontend",
+  "buildCommand": "npm run vercel-build",
+  "outputDirectory": "frontend/dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/((?!assets/|favicon\\.svg|icons\\.svg).*)", "destination": "/index.html" }
+  ]
+}

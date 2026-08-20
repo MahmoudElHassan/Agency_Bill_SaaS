@@ -1,0 +1,6 @@
+src/
+tests/
+*.sln
+docker-compose.yml
+.cursor/
+dump.rdb

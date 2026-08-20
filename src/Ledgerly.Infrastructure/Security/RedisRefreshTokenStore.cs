@@ -24,9 +24,6 @@ public class RedisRefreshTokenStore : IRefreshTokenStore
         var ttl = expiresAt - DateTime.UtcNow;
         if (ttl <= TimeSpan.Zero) return;
         await db.StringSetAsync(Key(token), userId.ToString(), ttl);
-        // #region agent log
-        try { var key = Key(token); System.IO.File.AppendAllText("/Users/mhamoud.elhassan10/AI & Projects/VSCode/Ledgerly/.cursor/debug-211c62.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "211c62", hypothesisId = "H5", location = "RedisRefreshTokenStore.SaveAsync", message = "refresh redis key scheme", data = new { prefix = "refresh:token:", usesRawTokenInKey = key.EndsWith(token, StringComparison.Ordinal), keyLength = key.Length }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), runId = "post-fix" }) + "\n"); } catch { }
-        // #endregion
     }
 
     public async Task<Guid?> FindUserIdAsync(string token, CancellationToken ct = default)

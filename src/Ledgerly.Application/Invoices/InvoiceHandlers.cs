@@ -120,10 +120,6 @@ public sealed class SendInvoiceHandler
         if (invoice.Status != InvoiceStatus.Draft)
             return Result.Failure<InvoiceDto>(Error.InvalidState);
 
-        // #region agent log
-        try { System.IO.File.AppendAllText("/Users/mhamoud.elhassan10/AI & Projects/VSCode/Ledgerly/.cursor/debug-211c62.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "211c62", hypothesisId = "H1", location = "SendInvoiceHandler.HandleAsync", message = "send transition", data = new { fromStatus = invoice.Status.ToString(), paidWouldBecomeSent = invoice.Status == InvoiceStatus.Paid }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), runId = "post-fix" }) + "\n"); } catch { }
-        // #endregion
-
         invoice.Status = InvoiceStatus.Sent;
         invoice.UpdatedAt = DateTime.UtcNow;
         await _invoices.UpdateAsync(invoice, ct);
