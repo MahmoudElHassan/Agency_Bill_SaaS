@@ -1,5 +1,5 @@
-src/
-tests/
+/src/
+/tests/
 *.sln
 docker-compose.yml
 .cursor/

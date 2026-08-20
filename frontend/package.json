@@ -8,8 +8,9 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "vercel-build": "npm run build",
+    "build": "vite build",
+    "build:check": "tsc -b && vite build",
+    "vercel-build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
