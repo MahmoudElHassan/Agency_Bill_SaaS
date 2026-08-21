@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Ledgerly.Shared;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 using Stripe;
 
 namespace Ledgerly.Api.Middleware;
@@ -36,6 +37,19 @@ public class ApiExceptionMiddleware
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             context.Response.ContentType = "application/json";
             var body = ApiResponse.Fail("validation", ex.Message);
+            await context.Response.WriteAsync(JsonSerializer.Serialize(body, JsonOptions));
+        }
+        catch (RedisException ex)
+        {
+            _log.LogError(ex, "Redis error at {Path}", context.Request.Path);
+            if (context.Response.HasStarted) throw;
+
+            context.Response.Clear();
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            context.Response.ContentType = "application/json";
+            var body = ApiResponse.Fail(
+                "redis_unavailable",
+                "Session store unavailable. Check ConnectionStrings:Redis on the API host.");
             await context.Response.WriteAsync(JsonSerializer.Serialize(body, JsonOptions));
         }
         catch (StripeException ex)

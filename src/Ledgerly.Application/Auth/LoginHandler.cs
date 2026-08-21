@@ -46,8 +46,31 @@ public sealed class LoginHandler
 
         var access = _jwt.CreateAccessToken(user.Id, tenant.Id, user.Email, user.Role.ToString());
         var (refresh, expiresAt) = _jwt.CreateRefreshToken();
-        await _refresh.SaveAsync(user.Id, refresh, expiresAt, ct);
+        try
+        {
+            await _refresh.SaveAsync(user.Id, refresh, expiresAt, ct);
+        }
+        catch (Exception ex) when (IsSessionStoreFailure(ex))
+        {
+            return Result.Failure<AuthResponse>(Error.FromMessage(
+                "redis_unavailable",
+                "Session store unavailable. Check ConnectionStrings:Redis on the API host."));
+        }
 
         return Result.Success(new AuthResponse(access, refresh, expiresAt, user.Id, tenant.Id, user.Role.ToString()));
+    }
+
+    private static bool IsSessionStoreFailure(Exception ex)
+    {
+        for (var e = ex; e is not null; e = e.InnerException)
+        {
+            var name = e.GetType().Name;
+            if (name.Contains("Redis", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (e.Message.Contains("Redis", StringComparison.OrdinalIgnoreCase)
+                || e.Message.Contains("UnableToConnect", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 }

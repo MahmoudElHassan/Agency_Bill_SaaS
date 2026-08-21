@@ -22,8 +22,15 @@ public static class DependencyInjection
             config.GetConnectionString("Default") ?? config["DATABASE_URL"]);
         services.AddDbContext<AppDbContext>(opts => opts.UseNpgsql(connection));
 
+        var envName = config["ASPNETCORE_ENVIRONMENT"]
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? "Production";
+        var isProduction = !string.Equals(envName, "Development", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(envName, "Testing", StringComparison.OrdinalIgnoreCase);
+
         var redisOptions = ConnectionStringNormalizer.RedisOptions(
-            config.GetConnectionString("Redis") ?? config["REDIS_URL"] ?? "localhost:6379");
+            config.GetConnectionString("Redis") ?? config["REDIS_URL"] ?? "localhost:6379",
+            isProduction);
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisOptions));
 
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();

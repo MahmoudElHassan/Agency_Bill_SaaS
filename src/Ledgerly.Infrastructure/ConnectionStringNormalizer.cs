@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.RegularExpressions;
 using Npgsql;
 using StackExchange.Redis;
@@ -71,12 +72,16 @@ public static class ConnectionStringNormalizer
     /// (host:port,password=...,ssl=True,abortConnect=False). Never round-trips
     /// through ConfigurationOptions.ToString(), which drops endpoints on re-parse.
     /// </summary>
-    public static string Redis(string? raw)
+    public static string Redis(string? raw, bool isProduction = false)
     {
-        var options = RedisOptions(raw);
-        var endpoint = options.EndPoints[0].ToString()
+        var options = RedisOptions(raw, isProduction);
+        var endpoint = FormatEndpoint(options.EndPoints[0])
             ?? throw new InvalidOperationException("Redis endpoint is missing.");
-        var parts = new List<string> { endpoint, "abortConnect=False" };
+        var parts = new List<string>
+        {
+            endpoint,
+            options.AbortOnConnectFail ? "abortConnect=True" : "abortConnect=False"
+        };
         if (!string.IsNullOrEmpty(options.Password))
             parts.Add($"password={options.Password}");
         if (options.Ssl)
@@ -84,7 +89,7 @@ public static class ConnectionStringNormalizer
         return string.Join(",", parts);
     }
 
-    public static ConfigurationOptions RedisOptions(string? raw)
+    public static ConfigurationOptions RedisOptions(string? raw, bool isProduction = false)
     {
         if (string.IsNullOrWhiteSpace(raw))
             throw new InvalidOperationException("ConnectionStrings:Redis is required.");
@@ -97,6 +102,9 @@ public static class ConnectionStringNormalizer
             throw new InvalidOperationException(
                 "ConnectionStrings:Redis must be a Redis URL (redis:// or rediss://), not an Upstash REST https:// URL.");
         }
+
+        ConfigurationOptions options;
+        string host;
 
         var uriMatch = Regex.Match(raw, @"rediss?://\S+", RegexOptions.IgnoreCase);
         if (uriMatch.Success)
@@ -114,9 +122,12 @@ public static class ConnectionStringNormalizer
                       || raw.Contains("--tls", StringComparison.OrdinalIgnoreCase)
                       || uri.Host.Contains("upstash.io", StringComparison.OrdinalIgnoreCase);
 
-            var options = new ConfigurationOptions
+            host = uri.Host;
+            RejectPlaceholderHost(host, isProduction);
+
+            options = new ConfigurationOptions
             {
-                AbortOnConnectFail = false,
+                AbortOnConnectFail = isProduction,
                 Ssl = ssl,
                 Password = password,
                 ConnectTimeout = 15000,
@@ -129,21 +140,76 @@ public static class ConnectionStringNormalizer
         // host:port,password=...,ssl=True
         if (raw.Contains(',') || Regex.IsMatch(raw, @"^[^:]+:\d+"))
         {
-            var parsed = ConfigurationOptions.Parse(raw);
-            parsed.AbortOnConnectFail = false;
-            parsed.ConnectTimeout = 15000;
-            parsed.SyncTimeout = 15000;
-            if (parsed.EndPoints.Count == 0)
+            options = ConfigurationOptions.Parse(raw);
+            options.AbortOnConnectFail = isProduction;
+            options.ConnectTimeout = 15000;
+            options.SyncTimeout = 15000;
+            if (options.EndPoints.Count == 0)
                 throw new InvalidOperationException("Redis connection string has no endpoints.");
 
-            var ep = parsed.EndPoints[0].ToString() ?? "";
-            if (ep.Contains("upstash.io", StringComparison.OrdinalIgnoreCase))
-                parsed.Ssl = true;
+            host = ExtractHost(options.EndPoints[0]);
+            RejectPlaceholderHost(host, isProduction);
 
-            return parsed;
+            if (host.Contains("upstash.io", StringComparison.OrdinalIgnoreCase))
+                options.Ssl = true;
+
+            return options;
         }
 
         throw new InvalidOperationException(
             "Unrecognized Redis connection string. Use redis://, rediss://, or host:port,password=...,ssl=True.");
+    }
+
+    internal static void RejectPlaceholderHost(string host, bool isProduction)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+            throw new InvalidOperationException("Redis host is missing.");
+
+        var h = host.Trim().ToLowerInvariant();
+
+        if (h is "your_host" or "your-host"
+            || h.StartsWith("your_host.", StringComparison.Ordinal)
+            || h.StartsWith("your-host.", StringComparison.Ordinal)
+            || h is "example.upstash.io"
+            || h.StartsWith("example.", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:Redis uses placeholder host '{host}'. Set the real Upstash host from the console (rediss://default:TOKEN@YOUR_HOST.upstash.io:6379).");
+        }
+
+        if (isProduction && (h is "localhost" or "127.0.0.1" or "::1" or "redis"))
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:Redis host '{host}' is not valid in Production. Use your Upstash rediss:// URL.");
+        }
+    }
+
+    private static string ExtractHost(EndPoint endpoint)
+    {
+        if (endpoint is DnsEndPoint dns)
+            return dns.Host;
+        if (endpoint is IPEndPoint ip)
+            return ip.Address.ToString();
+
+        var raw = endpoint.ToString() ?? "";
+        // DnsEndPoint.ToString() can look like "Unspecified/host:6379"
+        var slash = raw.LastIndexOf('/');
+        if (slash >= 0 && slash < raw.Length - 1)
+            raw = raw[(slash + 1)..];
+        var colon = raw.LastIndexOf(':');
+        if (colon > 0)
+            raw = raw[..colon];
+        return raw;
+    }
+
+    private static string? FormatEndpoint(EndPoint endpoint)
+    {
+        var host = ExtractHost(endpoint);
+        return endpoint switch
+        {
+            DnsEndPoint dns => $"{dns.Host}:{dns.Port}",
+            IPEndPoint ip => $"{ip.Address}:{ip.Port}",
+            _ => string.IsNullOrEmpty(host) ? endpoint.ToString() : host
+        };
     }
 }

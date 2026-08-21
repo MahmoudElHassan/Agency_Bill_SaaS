@@ -32,8 +32,8 @@ public class ConnectionStringNormalizerTests
     [Fact]
     public void Redis_parses_rediss_uri()
     {
-        var cs = ConnectionStringNormalizer.Redis("rediss://default:tok@example.upstash.io:6379");
-        cs.Should().Contain("example.upstash.io:6379");
+        var cs = ConnectionStringNormalizer.Redis("rediss://default:tok@witty-dinosaur-130239.upstash.io:6379");
+        cs.Should().Contain("witty-dinosaur-130239.upstash.io:6379");
         cs.Should().Contain("password=tok");
         cs.Should().Contain("ssl=True");
     }
@@ -41,8 +41,8 @@ public class ConnectionStringNormalizerTests
     [Fact]
     public void Redis_parses_keyword_string()
     {
-        var cs = ConnectionStringNormalizer.Redis("host.upstash.io:6379,password=abc,ssl=True");
-        cs.Should().Contain("host.upstash.io:6379");
+        var cs = ConnectionStringNormalizer.Redis("real-host.upstash.io:6379,password=abc,ssl=True");
+        cs.Should().Contain("real-host.upstash.io:6379");
         cs.Should().Contain("password=abc");
         cs.Should().Contain("ssl=True");
     }
@@ -55,6 +55,37 @@ public class ConnectionStringNormalizerTests
     }
 
     [Fact]
+    public void Redis_rejects_placeholder_your_host()
+    {
+        var act = () => ConnectionStringNormalizer.Redis(
+            "your_host.upstash.io:6379,password=x,ssl=True");
+        act.Should().Throw<InvalidOperationException>().WithMessage("*placeholder*");
+    }
+
+    [Fact]
+    public void Redis_rejects_example_upstash_host()
+    {
+        var act = () => ConnectionStringNormalizer.RedisOptions(
+            "rediss://default:tok@example.upstash.io:6379");
+        act.Should().Throw<InvalidOperationException>().WithMessage("*placeholder*");
+    }
+
+    [Fact]
+    public void Redis_rejects_localhost_in_production()
+    {
+        var act = () => ConnectionStringNormalizer.RedisOptions("localhost:6379", isProduction: true);
+        act.Should().Throw<InvalidOperationException>().WithMessage("*Production*");
+    }
+
+    [Fact]
+    public void Redis_allows_localhost_in_development()
+    {
+        var opts = ConnectionStringNormalizer.RedisOptions("localhost:6379", isProduction: false);
+        opts.EndPoints.Should().NotBeEmpty();
+        opts.AbortOnConnectFail.Should().BeFalse();
+    }
+
+    [Fact]
     public void RedisOptions_has_endpoints_for_cli_url()
     {
         var opts = ConnectionStringNormalizer.RedisOptions(
@@ -62,5 +93,14 @@ public class ConnectionStringNormalizerTests
         opts.EndPoints.Should().NotBeEmpty();
         opts.Ssl.Should().BeTrue();
         opts.Password.Should().Be("s3cret");
+    }
+
+    [Fact]
+    public void RedisOptions_production_sets_abort_on_connect_fail()
+    {
+        var opts = ConnectionStringNormalizer.RedisOptions(
+            "rediss://default:tok@witty-dinosaur-130239.upstash.io:6379",
+            isProduction: true);
+        opts.AbortOnConnectFail.Should().BeTrue();
     }
 }

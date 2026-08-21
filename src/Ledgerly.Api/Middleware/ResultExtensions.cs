@@ -28,6 +28,7 @@ public static class ResultExtensions
             "validation" or "weak_password" or "email_in_use" => StatusCodes.Status400BadRequest,
             "invalid_state" => StatusCodes.Status409Conflict,
             "conflict" => StatusCodes.Status409Conflict,
+            "redis_unavailable" => StatusCodes.Status503ServiceUnavailable,
             _ => StatusCodes.Status400BadRequest
         };
         return new ObjectResult(ApiResponse.Fail(error.Code, error.Message)) { StatusCode = status };
