@@ -45,9 +45,12 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey))
+    jwtKey = builder.Configuration["JWT_KEY"];
 var jwtOptions = new JwtOptions
 {
-    Key = builder.Configuration["Jwt:Key"] ?? builder.Configuration["JWT_KEY"] ?? string.Empty,
+    Key = jwtKey ?? string.Empty,
     Issuer = builder.Configuration["Jwt:Issuer"] ?? "ledgerly",
     Audience = builder.Configuration["Jwt:Audience"] ?? "ledgerly"
 };
@@ -183,9 +186,14 @@ if (app.Environment.IsDevelopment() && !disableHangfire)
     app.UseHangfireDashboard("/hangfire");
 }
 
-using var scope = app.Services.CreateScope();
-var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-db.Database.Migrate();
+var migrateOnStartup = builder.Configuration.GetValue<bool?>("Database:MigrateOnStartup")
+    ?? !builder.Environment.IsEnvironment("Testing");
+if (migrateOnStartup)
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
 if (!disableHangfire)
 {

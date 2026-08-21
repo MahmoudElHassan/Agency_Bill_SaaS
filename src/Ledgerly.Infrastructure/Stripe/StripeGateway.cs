@@ -35,13 +35,15 @@ public class StripeGateway : IStripeGateway
             CancelUrl = cancelUrl,
             Metadata = new Dictionary<string, string>
             {
-                ["tenantId"] = tenantId.ToString()
+                ["tenantId"] = tenantId.ToString(),
+                ["priceId"] = priceId
             },
             SubscriptionData = new SessionSubscriptionDataOptions
             {
                 Metadata = new Dictionary<string, string>
                 {
-                    ["tenantId"] = tenantId.ToString()
+                    ["tenantId"] = tenantId.ToString(),
+                    ["priceId"] = priceId
                 }
             }
         }, cancellationToken: ct);

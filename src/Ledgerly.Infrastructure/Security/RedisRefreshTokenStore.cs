@@ -26,10 +26,14 @@ public class RedisRefreshTokenStore : IRefreshTokenStore
         await db.StringSetAsync(Key(token), userId.ToString(), ttl);
     }
 
+    /// <summary>
+    /// Atomically reads and deletes the refresh token (GETDEL) so concurrent
+    /// refresh races cannot mint two sessions from one opaque token.
+    /// </summary>
     public async Task<Guid?> FindUserIdAsync(string token, CancellationToken ct = default)
     {
         var db = _redis.GetDatabase();
-        var val = await db.StringGetAsync(Key(token));
+        var val = await db.StringGetDeleteAsync(Key(token));
         if (!val.HasValue) return null;
         return Guid.TryParse(val.ToString(), out var id) ? id : null;
     }

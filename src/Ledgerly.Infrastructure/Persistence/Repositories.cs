@@ -179,7 +179,7 @@ public class InvoiceRepository : IInvoiceRepository
     {
         var list = await _db.Invoices.IgnoreQueryFilters()
             .Include(i => i.Client)
-            .Where(i => (i.Status == Domain.Enums.InvoiceStatus.Draft || i.Status == Domain.Enums.InvoiceStatus.Sent) && i.DueDate < today)
+            .Where(i => i.Status == Domain.Enums.InvoiceStatus.Sent && i.DueDate < today)
             .ToListAsync(ct);
         return list;
     }

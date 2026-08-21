@@ -61,7 +61,7 @@ const devFallback = "http://localhost:5080";
 export function getApiBaseUrl(): string {
   if (configuredUrl) return configuredUrl;
   if (import.meta.env.DEV) return devFallback;
-  // Production: same-origin /api/* is proxied by Vercel serverless (api/[...path].js)
+  // Production: same-origin /api/* is proxied by Vercel serverless (api/proxy.js)
   if (typeof window !== "undefined") return window.location.origin;
   return "";
 }
@@ -86,6 +86,32 @@ async function parseEnvelope<T>(res: Response): Promise<ApiEnvelope<T>> {
   }
 }
 
+/** Single-flight refresh so parallel 401s share one rotation. */
+let refreshInFlight: Promise<AuthResponse> | null = null;
+
+async function refreshSession(): Promise<AuthResponse> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const stored = localStorage.getItem("agencybill.auth");
+    if (!stored) throw new Error("Session expired");
+    let parsed: AuthResponse;
+    try {
+      parsed = JSON.parse(stored) as AuthResponse;
+    } catch {
+      localStorage.removeItem("agencybill.auth");
+      throw new Error("Session expired");
+    }
+    const refreshed = await api.refresh(parsed.refreshToken);
+    localStorage.setItem("agencybill.auth", JSON.stringify(refreshed));
+    return refreshed;
+  })().finally(() => {
+    refreshInFlight = null;
+  });
+
+  return refreshInFlight;
+}
+
 async function call<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) {
@@ -104,21 +130,16 @@ async function call<T>(path: string, init: RequestInit = {}, token?: string): Pr
   }
 
   if (res.status === 401 && token) {
-    const stored = localStorage.getItem("agencybill.auth");
-    if (stored) {
-      const parsed = JSON.parse(stored) as AuthResponse;
-      try {
-        const refreshed = await api.refresh(parsed.refreshToken);
-        localStorage.setItem("agencybill.auth", JSON.stringify(refreshed));
-        headers.set("Authorization", `Bearer ${refreshed.accessToken}`);
-        const retry = await fetch(`${baseUrl}${path}`, { ...init, headers });
-        const retryBody = await parseEnvelope<T>(retry);
-        if (!retryBody.success) throw new Error(retryBody.error?.message ?? "Request failed");
-        return retryBody.data as T;
-      } catch {
-        localStorage.removeItem("agencybill.auth");
-        throw new Error("Session expired");
-      }
+    try {
+      const refreshed = await refreshSession();
+      headers.set("Authorization", `Bearer ${refreshed.accessToken}`);
+      const retry = await fetch(`${baseUrl}${path}`, { ...init, headers });
+      const retryBody = await parseEnvelope<T>(retry);
+      if (!retryBody.success) throw new Error(retryBody.error?.message ?? "Request failed");
+      return retryBody.data as T;
+    } catch {
+      localStorage.removeItem("agencybill.auth");
+      throw new Error("Session expired");
     }
   }
 

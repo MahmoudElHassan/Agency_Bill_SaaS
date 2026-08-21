@@ -34,7 +34,7 @@ public sealed class MarkOverdueInvoicesHandler
         var changed = 0;
         foreach (var inv in candidates)
         {
-            if (inv.Status is InvoiceStatus.Draft or InvoiceStatus.Sent)
+            if (inv.Status is InvoiceStatus.Sent)
             {
                 inv.Status = InvoiceStatus.Overdue;
                 inv.UpdatedAt = DateTime.UtcNow;

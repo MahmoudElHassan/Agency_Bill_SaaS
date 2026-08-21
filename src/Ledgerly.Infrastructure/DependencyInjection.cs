@@ -22,15 +22,21 @@ public static class DependencyInjection
             config.GetConnectionString("Default") ?? config["DATABASE_URL"]);
         services.AddDbContext<AppDbContext>(opts => opts.UseNpgsql(connection));
 
-        var redisConn = ConnectionStringNormalizer.Redis(
+        var redisOptions = ConnectionStringNormalizer.RedisOptions(
             config.GetConnectionString("Redis") ?? config["REDIS_URL"] ?? "localhost:6379");
-        services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn));
+        services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisOptions));
 
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 
+        var jwtKey = config["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(jwtKey))
+            jwtKey = config["JWT_KEY"];
+        if (string.IsNullOrWhiteSpace(jwtKey))
+            throw new InvalidOperationException("Jwt:Key is required");
+
         var jwtOptions = new JwtOptions
         {
-            Key = config["Jwt:Key"] ?? config["JWT_KEY"] ?? throw new InvalidOperationException("Jwt:Key is required"),
+            Key = jwtKey,
             Issuer = config["Jwt:Issuer"] ?? "ledgerly",
             Audience = config["Jwt:Audience"] ?? "ledgerly",
             AccessTokenMinutes = int.TryParse(config["Jwt:AccessTokenMinutes"], out var m) ? m : 60,

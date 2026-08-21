@@ -16,16 +16,32 @@ public class DevSimulatorTests
         return new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
             b.UseEnvironment(Environments.Production);
+            b.ConfigureAppConfiguration((_, c) =>
+            {
+                c.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hangfire:Disabled"] = "true",
+                    ["Database:MigrateOnStartup"] = "false",
+                    ["Jwt:Key"] = "test_test_test_test_test_test_test_test_test_test_test"
+                });
+            });
         });
     }
 
     private static WebApplicationFactory<Program> DevelopmentFactoryWithSimulatorDisabled()
     {
-        Environment.SetEnvironmentVariable("Dev__EnableWebhookSimulator", "false");
-        Environment.SetEnvironmentVariable("Hangfire__Disabled", "true");
         return new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
             b.UseEnvironment(Environments.Development);
+            b.ConfigureAppConfiguration((_, c) =>
+            {
+                c.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hangfire:Disabled"] = "true",
+                    ["Database:MigrateOnStartup"] = "false",
+                    ["Dev:EnableWebhookSimulator"] = "false"
+                });
+            });
         });
     }
 

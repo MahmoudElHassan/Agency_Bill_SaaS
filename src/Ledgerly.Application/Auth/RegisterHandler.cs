@@ -40,7 +40,8 @@ public sealed class RegisterHandler
         if (request.Password.Length < 8)
             return Result.Failure<AuthResponse>(Error.FromMessage("weak_password", "Password must be at least 8 characters."));
 
-        if (await _users.EmailExistsAsync(request.Email, ct))
+        var email = request.Email.Trim().ToLowerInvariant();
+        if (await _users.EmailExistsAsync(email, ct))
             return Result.Failure<AuthResponse>(Error.FromMessage("email_in_use", "Email already registered."));
 
         var slug = await GenerateUniqueSlugAsync(request.TenantName, ct);
@@ -57,21 +58,41 @@ public sealed class RegisterHandler
         var user = new User
         {
             TenantId = tenant.Id,
-            Email = request.Email.Trim().ToLowerInvariant(),
+            Email = email,
             PasswordHash = _hasher.Hash(request.Password),
             FullName = request.FullName.Trim(),
             Role = TenantRole.Owner
         };
-        await _users.AddAsync(user, ct);
 
-        await _tenants.SaveChangesAsync(ct);
-        await _users.SaveChangesAsync(ct);
+        try
+        {
+            await _users.AddAsync(user, ct);
+            await _tenants.SaveChangesAsync(ct);
+            await _users.SaveChangesAsync(ct);
+        }
+        catch (Exception ex) when (IsUniqueViolation(ex))
+        {
+            return Result.Failure<AuthResponse>(Error.FromMessage("email_in_use", "Email already registered."));
+        }
 
         var access = _jwt.CreateAccessToken(user.Id, tenant.Id, user.Email, user.Role.ToString());
         var (refresh, expiresAt) = _jwt.CreateRefreshToken();
         await _refresh.SaveAsync(user.Id, refresh, expiresAt, ct);
 
         return Result.Success(new AuthResponse(access, refresh, expiresAt, user.Id, tenant.Id, user.Role.ToString()));
+    }
+
+    private static bool IsUniqueViolation(Exception ex)
+    {
+        for (var e = ex; e is not null; e = e.InnerException)
+        {
+            var msg = e.Message;
+            if (msg.Contains("unique", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("IX_Users_Email", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     private async Task<string> GenerateUniqueSlugAsync(string name, CancellationToken ct)

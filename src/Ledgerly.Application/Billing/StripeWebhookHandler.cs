@@ -37,23 +37,21 @@ public sealed class StripeWebhookHandler
             return Result.Success();
         }
 
-        switch (payload.Type)
+        var applied = payload.Type switch
         {
-            case "checkout.session.completed":
-                await ApplyCheckoutCompletedAsync(payload, ct);
-                break;
-            case "customer.subscription.updated":
-                await ApplySubscriptionUpdatedAsync(payload, ct);
-                break;
-            case "customer.subscription.deleted":
-                await ApplySubscriptionDeletedAsync(payload, ct);
-                break;
-            case "payment_intent.succeeded":
-                await ApplyPaymentIntentSucceededAsync(payload, ct);
-                break;
-            default:
-                _log.LogInformation("Ignored Stripe event type: {Type}", payload.Type);
-                break;
+            "checkout.session.completed" => await ApplyCheckoutCompletedAsync(payload, ct),
+            "customer.subscription.created" => await ApplySubscriptionUpdatedAsync(payload, ct),
+            "customer.subscription.updated" => await ApplySubscriptionUpdatedAsync(payload, ct),
+            "customer.subscription.deleted" => await ApplySubscriptionDeletedAsync(payload, ct),
+            "payment_intent.succeeded" => await ApplyPaymentIntentSucceededAsync(payload, ct),
+            _ => true // ignored types still get recorded so Stripe does not retry forever
+        };
+
+        if (!applied)
+        {
+            _log.LogWarning("Stripe webhook {Id} ({Type}) was not applied; not marking processed",
+                payload.StripeEventId, payload.Type);
+            return Result.Failure(Error.FromMessage("webhook_apply_failed", "Webhook could not be applied."));
         }
 
         await _events.AddAsync(new WebhookEvent
@@ -75,15 +73,15 @@ public sealed class StripeWebhookHandler
         return Result.Success();
     }
 
-    private async Task ApplyCheckoutCompletedAsync(StripeWebhookPayload p, CancellationToken ct)
+    private async Task<bool> ApplyCheckoutCompletedAsync(StripeWebhookPayload p, CancellationToken ct)
     {
         if (!p.TenantId.HasValue)
         {
             _log.LogWarning("checkout.session.completed without tenantId metadata");
-            return;
+            return false;
         }
         var tenant = await _tenants.GetByIdAsync(p.TenantId.Value, ct);
-        if (tenant is null) return;
+        if (tenant is null) return false;
 
         if (!string.IsNullOrWhiteSpace(p.CustomerId))
             tenant.StripeCustomerId = p.CustomerId;
@@ -97,17 +95,18 @@ public sealed class StripeWebhookHandler
         tenant.PlanStatus = PlanStatus.Active;
         tenant.UpdatedAt = DateTime.UtcNow;
         await _tenants.SaveChangesAsync(ct);
+        return true;
     }
 
-    private async Task ApplySubscriptionUpdatedAsync(StripeWebhookPayload p, CancellationToken ct)
+    private async Task<bool> ApplySubscriptionUpdatedAsync(StripeWebhookPayload p, CancellationToken ct)
     {
         if (!p.TenantId.HasValue)
         {
-            _log.LogWarning("customer.subscription.updated without tenantId metadata");
-            return;
+            _log.LogWarning("customer.subscription event without tenantId metadata");
+            return false;
         }
         var tenant = await _tenants.GetByIdAsync(p.TenantId.Value, ct);
-        if (tenant is null) return;
+        if (tenant is null) return false;
 
         var planFromPrice = PlanCatalog.FromPriceId(p.PriceId, _priceOptions);
         if (planFromPrice.HasValue)
@@ -116,40 +115,50 @@ public sealed class StripeWebhookHandler
         tenant.PlanStatus = PlanStatus.Active;
         tenant.UpdatedAt = DateTime.UtcNow;
         await _tenants.SaveChangesAsync(ct);
+        return true;
     }
 
-    private async Task ApplySubscriptionDeletedAsync(StripeWebhookPayload p, CancellationToken ct)
+    private async Task<bool> ApplySubscriptionDeletedAsync(StripeWebhookPayload p, CancellationToken ct)
     {
-        if (!p.TenantId.HasValue) return;
+        if (!p.TenantId.HasValue) return false;
         var tenant = await _tenants.GetByIdAsync(p.TenantId.Value, ct);
-        if (tenant is null) return;
+        if (tenant is null) return false;
 
         tenant.Plan = Plan.Free;
         tenant.PlanStatus = PlanStatus.Canceled;
         tenant.StripeSubscriptionId = null;
         tenant.UpdatedAt = DateTime.UtcNow;
         await _tenants.SaveChangesAsync(ct);
+        return true;
     }
 
-    private async Task ApplyPaymentIntentSucceededAsync(StripeWebhookPayload p, CancellationToken ct)
+    private async Task<bool> ApplyPaymentIntentSucceededAsync(StripeWebhookPayload p, CancellationToken ct)
     {
         if (!p.InvoiceId.HasValue || !p.TenantId.HasValue)
         {
             _log.LogWarning("payment_intent.succeeded missing invoiceId/tenantId metadata");
-            return;
+            return false;
         }
 
         var invoice = await _invoices.GetByIdIgnoringFiltersAsync(p.InvoiceId.Value, ct);
         if (invoice is null)
         {
             _log.LogWarning("payment_intent.succeeded invoice {Id} not found", p.InvoiceId);
-            return;
+            return false;
         }
         if (invoice.TenantId != p.TenantId.Value)
         {
             _log.LogWarning("payment_intent.succeeded invoice {Id} tenant mismatch (expected {Expected}, got {Actual})",
                 p.InvoiceId, p.TenantId, invoice.TenantId);
-            return;
+            return false;
+        }
+
+        if (invoice.Status is not InvoiceStatus.Sent and not InvoiceStatus.Overdue)
+        {
+            _log.LogWarning("payment_intent.succeeded ignored for invoice {Id} in status {Status}",
+                invoice.Id, invoice.Status);
+            // Acknowledge Void/Draft/Paid without mutating; only missing tenant/invoice should retry.
+            return true;
         }
 
         invoice.Status = InvoiceStatus.Paid;
@@ -159,5 +168,6 @@ public sealed class StripeWebhookHandler
         invoice.UpdatedAt = DateTime.UtcNow;
         await _invoices.UpdateAsync(invoice, ct);
         await _invoices.SaveChangesAsync(ct);
+        return true;
     }
 }

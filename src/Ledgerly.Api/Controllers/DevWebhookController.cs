@@ -49,7 +49,7 @@ public class DevWebhookController : ControllerBase
     [HttpPost("jobs/mark-overdue")]
     public async Task<IActionResult> MarkOverdue(CancellationToken ct)
     {
-        if (!_env.IsDevelopment())
+        if (!_env.IsDevelopment() || !_config.GetValue<bool>("Dev:EnableWebhookSimulator"))
             return NotFound();
 
         var result = await _overdue.HandleAsync(ct);

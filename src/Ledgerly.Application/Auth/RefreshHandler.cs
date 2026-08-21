@@ -36,10 +36,9 @@ public sealed class RefreshHandler
 
         var tenant = await _tenants.GetByIdAsync(user.TenantId, ct);
         if (tenant is null)
-            return Result.Failure<AuthResponse>(Error.FromMessage("tenant_missing", "Tenant not found."));
+            return Result.Failure<AuthResponse>(Error.Unauthorized);
 
-        await _refresh.RevokeAsync(request.RefreshToken, ct);
-
+        // Token already claimed atomically via GETDEL in FindUserIdAsync.
         var access = _jwt.CreateAccessToken(user.Id, tenant.Id, user.Email, user.Role.ToString());
         var (refresh, expiresAt) = _jwt.CreateRefreshToken();
         await _refresh.SaveAsync(user.Id, refresh, expiresAt, ct);

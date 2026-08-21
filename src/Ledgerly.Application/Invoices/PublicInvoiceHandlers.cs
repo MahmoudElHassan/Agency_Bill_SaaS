@@ -42,7 +42,7 @@ public sealed class PublicPayHandler
         if (invoice is null)
             return Result.Failure<PayResponse>(Error.NotFound);
 
-        if (invoice.Status != InvoiceStatus.Sent)
+        if (invoice.Status is not InvoiceStatus.Sent and not InvoiceStatus.Overdue)
             return Result.Failure<PayResponse>(Error.InvalidState);
 
         var amount = (long)decimal.Round(invoice.Total * 100m, 0, MidpointRounding.AwayFromZero);

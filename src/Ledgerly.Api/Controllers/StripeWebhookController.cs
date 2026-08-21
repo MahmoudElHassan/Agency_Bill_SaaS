@@ -49,12 +49,15 @@ public class StripeWebhookController : ControllerBase
                 tenantId = ParseGuid(session.Metadata, "tenantId");
                 customerId = session.CustomerId;
                 subscriptionId = session.SubscriptionId;
+                priceId = ParseString(session.Metadata, "priceId")
+                    ?? session.LineItems?.Data?.FirstOrDefault()?.Price?.Id;
                 break;
             case Subscription sub:
                 tenantId = ParseGuid(sub.Metadata, "tenantId");
                 customerId = sub.CustomerId;
                 subscriptionId = sub.Id;
-                priceId = sub.Items?.Data?.FirstOrDefault()?.Price?.Id;
+                priceId = ParseString(sub.Metadata, "priceId")
+                    ?? sub.Items?.Data?.FirstOrDefault()?.Price?.Id;
                 break;
         }
 
@@ -77,5 +80,12 @@ public class StripeWebhookController : ControllerBase
         if (metadata is null) return null;
         if (!metadata.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw)) return null;
         return Guid.TryParse(raw, out var g) ? g : null;
+    }
+
+    private static string? ParseString(IDictionary<string, string>? metadata, string key)
+    {
+        if (metadata is null) return null;
+        if (!metadata.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw)) return null;
+        return raw;
     }
 }

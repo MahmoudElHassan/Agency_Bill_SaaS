@@ -23,6 +23,9 @@ module.exports = async (req, res) => {
   const headers = { ...req.headers };
   delete headers.host;
   delete headers.connection;
+  // Node fetch decompresses; do not ask for/forward compressed payloads.
+  delete headers["accept-encoding"];
+  headers["accept-encoding"] = "identity";
 
   let body;
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -31,11 +34,24 @@ module.exports = async (req, res) => {
     body = Buffer.concat(chunks);
   }
 
+  const hopByHop = new Set([
+    "transfer-encoding",
+    "content-encoding",
+    "content-length",
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "upgrade"
+  ]);
+
   try {
     const upstream = await fetch(target, { method: req.method, headers, body });
     res.statusCode = upstream.status;
     upstream.headers.forEach((value, key) => {
-      if (key.toLowerCase() === "transfer-encoding") return;
+      if (hopByHop.has(key.toLowerCase())) return;
       res.setHeader(key, value);
     });
     res.end(Buffer.from(await upstream.arrayBuffer()));
