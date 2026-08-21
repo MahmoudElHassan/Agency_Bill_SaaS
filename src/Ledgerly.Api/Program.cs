@@ -16,6 +16,7 @@ using Ledgerly.Infrastructure.Security;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Hangfire.MemoryStorage;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -94,12 +95,10 @@ builder.Services.AddScoped<ICurrentTenant>(sp =>
 
 var postgresConnection = ConnectionStringNormalizer.Postgres(
     builder.Configuration.GetConnectionString("Default") ?? builder.Configuration["DATABASE_URL"]);
-var redisConnection = ConnectionStringNormalizer.Redis(
-    builder.Configuration.GetConnectionString("Redis") ?? builder.Configuration["REDIS_URL"] ?? "localhost:6379");
 
 builder.Services.AddHealthChecks()
     .AddNpgSql(postgresConnection, name: "postgres")
-    .AddRedis(redisConnection, name: "redis");
+    .AddRedis(sp => sp.GetRequiredService<IConnectionMultiplexer>(), name: "redis");
 
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("Ledgerly.Api"))
